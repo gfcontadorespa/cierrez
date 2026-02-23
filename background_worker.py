@@ -29,13 +29,23 @@ class IntelligentWorker:
 
     def _init_drive_service(self):
         try:
+            # 1. Intentar cargar desde variable de entorno (Ideal para Easypanel/Docker)
+            creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+            if creds_json:
+                print("🔑 Cargando credenciales de Google desde variable de entorno...")
+                creds_dict = json.loads(creds_json)
+                creds = Credentials.from_authorized_user_info(creds_dict)
+                return build('drive', 'v3', credentials=creds)
+
+            # 2. Intentar cargar desde archivo local (Desarrollo)
             authorized_user_file = os.path.expanduser('~/.config/gspread/authorized_user.json')
-            if not os.path.exists(authorized_user_file):
-                print(f"⚠️ No se encontró el archivo de token en: {authorized_user_file}")
-                return None
+            if os.path.exists(authorized_user_file):
+                print(f"📄 Cargando credenciales de Google desde archivo: {authorized_user_file}")
+                creds = Credentials.from_authorized_user_file(authorized_user_file)
+                return build('drive', 'v3', credentials=creds)
             
-            creds = Credentials.from_authorized_user_file(authorized_user_file)
-            return build('drive', 'v3', credentials=creds)
+            print("⚠️ No se encontraron credenciales de Google (GOOGLE_CREDENTIALS_JSON o authorized_user.json).")
+            return None
         except Exception as e:
             print(f"❌ Error inicializando Drive Service: {e}")
             return None
