@@ -31,7 +31,7 @@ La información puede estar en varias imágenes (Encabezado, Ventas, Pagos).
 Campos requeridos:
 1. num_cierre (Número entero que sigue a 'Arqueo: Z Numero:', ej: 1044)
 2. fecha (Fecha del arqueo en formato YYYY-MM-DD, ej: '2025-09-20')
-3. caja (Identificador de la caja, ej: 'AA1')
+3. caja (Identificador de la caja - SOLO LETRAS, ej: 'AA', 'AB')
 4. vendedor (Nombre del vendedor, ej: 'YISSEL REYES')
 5. ventas_gravables (Número: monto neto gravable)
 6. ventas_exentas (Número: monto exento)
