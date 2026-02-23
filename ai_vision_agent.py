@@ -47,7 +47,7 @@ Validaciones críticas para la imagen de Visa/Mastercard:
 - La fecha en la tira de la tarjeta (ej. 20/09/25) DEBE coincidir con la fecha del Cierre Z.
 - La tira DEBE decir 'CIERRE' o 'SETTLEMENT ACCEPTED'.
 - La tira DEBE mencionar 'VISA' o 'MASTERCARD'.
-Si no se cumplen estas validaciones para una imagen, ignora sus montos y repórtalo en un campo 'debug_info' dentro del JSON.
+Si alguna validación falla para una imagen específica, pon ese monto en 0, pero CONTINÚA extrayendo todos los demás campos de las otras imágenes normalmente. Reporta el motivo exacto del fallo en un campo 'debug_info' dentro del JSON.
 
 Responde ÚNICAMENTE con el objeto JSON puro. No incluyas ```json ni texto adicional.
 """}
