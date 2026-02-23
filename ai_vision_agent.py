@@ -25,22 +25,25 @@ class AIVisionAgent:
 
         content_blocks = [
             {"type": "text", "text": """
-Analiza estas imágenes de un Cierre Z (comprobante de caja) y extrae los siguientes datos en formato JSON puro.
-Es posible que la información esté repartida en varias imágenes (ej: una para el encabezado, otra para las ventas, otra para el datafono).
+Analiza estas imágenes de un Cierre Z y extrae los datos en formato JSON puro.
+La información puede estar en varias imágenes (Encabezado, Ventas, Pagos).
 
 Campos requeridos:
-1. num_cierre (número entero - busca en el encabezado)
-2. ventas_gravables (número - monto neto con impuesto 7% o 10%)
-3. ventas_exentas (número - monto sin impuestos)
-4. impuesto (número - ITBMS total)
-5. total_ingresos (número total de ventas del día)
-6. efectivo (monto en efectivo según el reporte de caja)
-7. yappy (monto pagado por Yappy)
-8. pos_clave (monto pagado con tarjeta Clave / Débito local)
-9. pos_visa_mc (monto pagado con Visa/Mastercard)
-10. total_pagos (suma de todos los métodos de pago extraídos de las fotos)
+1. num_cierre (Número entero que sigue a 'Arqueo: Z Numero:', ej: 1044)
+2. fecha (Fecha del arqueo en formato YYYY-MM-DD, ej: '2025-09-20')
+3. caja (Identificador de la caja, ej: 'AA1')
+4. vendedor (Nombre del vendedor, ej: 'YISSEL REYES')
+5. ventas_gravables (Número: monto neto gravable)
+6. ventas_exentas (Número: monto exento)
+7. impuesto (Número: ITBMS total)
+8. total_ingresos (Número: ventas totales del día)
+9. efectivo (Número: monto en efectivo)
+10. yappy (Número: monto Yappy)
+11. pos_clave (Número: monto Clave)
+12. pos_visa_mc (Número: monto Visa/Mastercard)
+13. total_pagos (Número: suma de todos los pagos)
 
-Responde ÚNICAMENTE con el objeto JSON, sin bloques de código ```json ni texto adicional.
+Responde ÚNICAMENTE con el objeto JSON puro. No incluyas ```json ni texto adicional.
 """}
         ]
 

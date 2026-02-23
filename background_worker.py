@@ -138,6 +138,9 @@ class IntelligentWorker:
             update_query = """
             UPDATE tblcierresz SET
                 num_cierre = %s,
+                invoice_date = %s,
+                caja = %s,
+                vendedor = %s,
                 ventas_gravables = %s,
                 ventas_exentas = %s,
                 impuesto = %s,
@@ -154,6 +157,9 @@ class IntelligentWorker:
             
             params = (
                 extracted_data.get('num_cierre'),
+                extracted_data.get('fecha'),
+                extracted_data.get('caja'),
+                extracted_data.get('vendedor'),
                 extracted_data.get('ventas_gravables'),
                 extracted_data.get('ventas_exentas'),
                 extracted_data.get('impuesto'),
