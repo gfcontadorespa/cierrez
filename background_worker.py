@@ -150,6 +150,7 @@ class IntelligentWorker:
                 pos_clave = %s,
                 pos_visa_mc = %s,
                 total_pagos = %s,
+                comentarios = %s,
                 ocr_raw_text = %s,
                 fecha_modifica = NOW()
             WHERE row_id = %s
@@ -169,6 +170,7 @@ class IntelligentWorker:
                 extracted_data.get('pos_clave'),
                 extracted_data.get('pos_visa_mc'),
                 extracted_data.get('total_pagos'),
+                extracted_data.get('debug_info'), # Guardamos el error de validación aquí
                 json.dumps(extracted_data),
                 row_id
             )
