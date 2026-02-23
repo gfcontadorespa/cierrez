@@ -91,35 +91,48 @@ class IntelligentWorker:
 
     def process_pending_cierres(self):
         """
-        Busca registros en tblcierresz que tengan imagen pero no OCR procesado.
+        Busca registros en tblcierresz que tengan al menos una imagen pero no OCR procesado.
         """
-        # Buscamos registros donde ocr_raw_text sea NULL o vacío, pero IMAGEN tenga datos
-        query = "SELECT row_id, imagen, etiqueta_sucursal FROM tblcierresz WHERE imagen IS NOT NULL AND (ocr_raw_text IS NULL OR ocr_raw_text = '');"
+        query = """
+        SELECT row_id, imagen, imagen_header, imagen_ventas, imagen_visa_mc, imagen_clave, etiqueta_sucursal 
+        FROM tblcierresz 
+        WHERE (imagen IS NOT NULL OR imagen_header IS NOT NULL OR imagen_ventas IS NOT NULL OR imagen_visa_mc IS NOT NULL OR imagen_clave IS NOT NULL)
+        AND (ocr_raw_text IS NULL OR ocr_raw_text = '');
+        """
         pending = self.db.fetch_all(query)
         
         if not pending:
             return
 
-        print(f"--- Procesando {len(pending)} cierres pendientes ---")
+        print(f"--- Procesando {len(pending)} cierres con múltiples imágenes ---")
         
-        for row_id, imagen_path, sucursal in pending:
-            # AppSheet suele guardar la ruta relativa como 'Carpeta/Imagen.jpg'
-            # Extraemos el nombre del archivo
-            file_name = os.path.basename(imagen_path)
-            print(f"Procesando cierre {row_id} ({sucursal}) - Imagen: {file_name}")
+        for record in pending:
+            row_id = record[0]
+            # Columnas 1 a 5 son las rutas de las imágenes
+            image_paths_in_db = record[1:6]
+            sucursal = record[6]
             
-            local_path = self.download_image(file_name)
-            if not local_path:
+            local_paths = []
+            print(f"Procesando cierre {row_id} ({sucursal})")
+            
+            for img_path in image_paths_in_db:
+                if img_path:
+                    file_name = os.path.basename(img_path)
+                    local_path = self.download_image(file_name)
+                    if local_path:
+                        local_paths.append(local_path)
+            
+            if not local_paths:
                 continue
             
-            # Llamamos a la AI
-            extracted_data = self.ai.process_cierre(local_path)
+            # Llamamos a la AI con la lista de imágenes
+            extracted_data = self.ai.process_cierre(local_paths)
             
             if "error" in extracted_data:
                 print(f"❌ Error IA: {extracted_data['error']}")
                 continue
             
-            print(f"✅ Datos extraídos: {extracted_data}")
+            print(f"✅ Datos extraídos de {len(local_paths)} imágenes: {extracted_data}")
             
             # Actualizar Postgres
             update_query = """
@@ -150,16 +163,17 @@ class IntelligentWorker:
                 extracted_data.get('pos_clave'),
                 extracted_data.get('pos_visa_mc'),
                 extracted_data.get('total_pagos'),
-                json.dumps(extracted_data), # Guardamos el JSON completo en ocr_raw_text
+                json.dumps(extracted_data),
                 row_id
             )
             
             self.db.execute_query(update_query, params)
-            print(f"✅ Registro {row_id} actualizado en base de datos.")
+            print(f"✅ Registro {row_id} actualizado.")
             
-            # Limpiar imagen local
-            if os.path.exists(local_path):
-                os.remove(local_path)
+            # Limpiar imágenes locales
+            for lp in local_paths:
+                if os.path.exists(lp):
+                    os.remove(lp)
 
     def run(self, interval=60):
         print(f"🚀 Intelligent Worker iniciado. Polling cada {interval} segundos...")
