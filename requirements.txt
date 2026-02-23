@@ -1,0 +1,11 @@
+pandas
+requests
+python-dotenv
+psycopg2-binary
+openai
+gspread
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
+opencv-python-headless
+numpy

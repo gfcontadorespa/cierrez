@@ -1,0 +1,19 @@
+# Ignore everything by default
+*
+
+# Allow specific files for the worker
+!background_worker.py
+!ai_vision_agent.py
+!db_manager.py
+!appsheet_api_client.py
+!Dockerfile
+!requirements.txt
+!.gitignore
+!README.md
+
+# Ignore secrets even if explicitly allowed elsewhere (safety first)
+.env
+*.json
+__pycache__/
+temp_images/
+.DS_Store
