@@ -40,8 +40,14 @@ Campos requeridos:
 9. efectivo (Número: monto en efectivo según reporte)
 10. yappy (Número: monto Yappy)
 11. pos_clave (Número: monto Clave)
-12. pos_visa_mc (Número: monto Visa/Mastercard)
+12. pos_visa_mc (Número: En la imagen de Visa/Mastercard, busca 'TOTALES GENERALES' o el 'TOTAL' al final de la tira que suma Visa y Mastercard. ej: 544.64)
 13. total_pagos (Número: suma de todos los pagos)
+
+Validaciones críticas para la imagen de Visa/Mastercard:
+- La fecha en la tira de la tarjeta (ej. 20/09/25) DEBE coincidir con la fecha del Cierre Z.
+- La tira DEBE decir 'CIERRE' o 'SETTLEMENT ACCEPTED'.
+- La tira DEBE mencionar 'VISA' o 'MASTERCARD'.
+Si no se cumplen estas validaciones para una imagen, ignora sus montos y repórtalo en un campo 'debug_info' dentro del JSON.
 
 Responde ÚNICAMENTE con el objeto JSON puro. No incluyas ```json ni texto adicional.
 """}
