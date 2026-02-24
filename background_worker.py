@@ -96,7 +96,7 @@ class IntelligentWorker:
         Limitado a 'limit' registros por tanda para evitar consumo excesivo de créditos.
         """
         query = f"""
-        SELECT row_id, imagen, imagen_header, imagen_ventas, imagen_visa_mc, imagen_clave, etiqueta_sucursal 
+        SELECT row_id, imagen, imagen_header, imagen_ventas, imagen_visa_mc, imagen_clave, etiqueta_sucursal, pos_visa_mc, pos_clave 
         FROM tblcierresz 
         WHERE (imagen IS NOT NULL OR imagen_header IS NOT NULL OR imagen_ventas IS NOT NULL OR imagen_visa_mc IS NOT NULL OR imagen_clave IS NOT NULL)
         AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
@@ -115,6 +115,8 @@ class IntelligentWorker:
             # Columnas 1 a 5 son las rutas de las imágenes
             image_paths_in_db = record[1:6]
             sucursal = record[6]
+            manual_visa = record[7] or 0.0
+            manual_clave = record[8] or 0.0
             
             local_paths = []
             print(f"Procesando cierre {row_id} ({sucursal})")
@@ -142,25 +144,42 @@ class IntelligentWorker:
             
             print(f"✅ Datos extraídos de {len(local_paths)} imágenes: {extracted_data}")
             
-            # Actualizar Postgres (SOLO CAMPOS DE TARJETAS PARA NO SOBREESCRIBIR LO MANUAL)
+            # Lógica de comparación (Auditoría)
+            ai_visa = float(extracted_data.get('pos_visa_mc') or 0.0)
+            ai_clave = float(extracted_data.get('pos_clave') or 0.0)
+            
+            audit_msg = []
+            # Comparar Visa/MC
+            if abs(float(manual_visa) - ai_visa) < 0.01:
+                audit_msg.append("✅ Visa/MC OK")
+            else:
+                audit_msg.append(f"❌ Visa/MC Diff: AppSheet {manual_visa} vs Foto {ai_visa}")
+            
+            # Comparar Clave
+            if abs(float(manual_clave) - ai_clave) < 0.01:
+                audit_msg.append("✅ Clave OK")
+            else:
+                audit_msg.append(f"❌ Clave Diff: AppSheet {manual_clave} vs Foto {ai_clave}")
+
+            # Combinar con posibles errores de validación de la IA
+            final_comment = " | ".join(audit_msg)
+            debug_val = extracted_data.get('debug_info')
+            if debug_val:
+                if isinstance(debug_val, dict):
+                    debug_val = json.dumps(debug_val)
+                final_comment += f" | IA Note: {debug_val}"
+
+            # Actualizar Postgres (SOLO CAMPOS DE AUDITORÍA Y COMENTARIOS)
             update_query = """
             UPDATE tblcierresz SET
-                pos_clave = %s,
-                pos_visa_mc = %s,
                 comentarios = %s,
                 ocr_raw_text = %s,
                 fecha_modifica = NOW()
             WHERE row_id = %s
             """
             
-            debug_val = extracted_data.get('debug_info')
-            if isinstance(debug_val, dict):
-                debug_val = json.dumps(debug_val)
-            
             params = (
-                extracted_data.get('pos_clave'),
-                extracted_data.get('pos_visa_mc'),
-                debug_val, 
+                final_comment, 
                 json.dumps(extracted_data),
                 row_id
             )
