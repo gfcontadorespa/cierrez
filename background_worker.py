@@ -164,6 +164,11 @@ class IntelligentWorker:
             WHERE row_id = %s
             """
             
+            import re
+            caja_val = extracted_data.get('caja', '')
+            if caja_val:
+                caja_val = re.sub(r'[^A-Z]', '', str(caja_val).upper())
+                
             debug_val = extracted_data.get('debug_info')
             if isinstance(debug_val, dict):
                 debug_val = json.dumps(debug_val)
@@ -171,7 +176,7 @@ class IntelligentWorker:
             params = (
                 extracted_data.get('num_cierre'),
                 extracted_data.get('fecha'),
-                extracted_data.get('caja'),
+                caja_val, # Usamos la versión limpia (solo letras)
                 extracted_data.get('vendedor'),
                 extracted_data.get('ventas_gravables'),
                 extracted_data.get('ventas_exentas'),

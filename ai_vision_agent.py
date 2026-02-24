@@ -31,7 +31,7 @@ La información puede estar en varias imágenes (Encabezado, Ventas, Pagos).
 Campos requeridos:
 1. num_cierre (Número entero que sigue a 'Arqueo: Z Numero:', ej: 1044)
 2. fecha (Fecha del arqueo en formato YYYY-MM-DD, ej: '2025-09-20')
-3. caja (Identificador de la caja - SOLO LETRAS, ej: 'AA', 'AB')
+3. caja (Identificador de la caja - EXTRAER ÚNICAMENTE LAS LETRAS DEL PREFIJO, ej: de 'AG1' extraer solo 'AG', de 'AA2' extraer solo 'AA'. No incluir números.)
 4. vendedor (Nombre del vendedor, ej: 'YISSEL REYES')
 5. ventas_gravables (Número: En la tabla 'IMPUESTOS', es el monto bajo 'BASE IMP.' de la línea 'IVA 7%' o 'IVA 10%')
 6. ventas_exentas (Número: En la tabla 'IMPUESTOS', es el monto bajo 'BASE IMP.' de la línea 'IVA 0%' o 'EXENTO')
