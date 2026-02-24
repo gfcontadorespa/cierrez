@@ -1,3 +1,4 @@
+# Intelligent Background Worker - Database schema adjusted for nullable fields
 import os
 import time
 import requests
