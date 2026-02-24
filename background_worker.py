@@ -142,52 +142,25 @@ class IntelligentWorker:
             
             print(f"✅ Datos extraídos de {len(local_paths)} imágenes: {extracted_data}")
             
-            # Actualizar Postgres
+            # Actualizar Postgres (SOLO CAMPOS DE TARJETAS PARA NO SOBREESCRIBIR LO MANUAL)
             update_query = """
             UPDATE tblcierresz SET
-                num_cierre = %s,
-                invoice_date = %s,
-                caja = %s,
-                vendedor = %s,
-                ventas_gravables = %s,
-                ventas_exentas = %s,
-                impuesto = %s,
-                total_ingresos = %s,
-                efectivo = %s,
-                yappy = %s,
                 pos_clave = %s,
                 pos_visa_mc = %s,
-                total_pagos = %s,
                 comentarios = %s,
                 ocr_raw_text = %s,
                 fecha_modifica = NOW()
             WHERE row_id = %s
             """
             
-            import re
-            caja_val = extracted_data.get('caja', '')
-            if caja_val:
-                caja_val = re.sub(r'[^A-Z]', '', str(caja_val).upper())
-                
             debug_val = extracted_data.get('debug_info')
             if isinstance(debug_val, dict):
                 debug_val = json.dumps(debug_val)
             
             params = (
-                extracted_data.get('num_cierre'),
-                extracted_data.get('fecha'),
-                caja_val, # Usamos la versión limpia (solo letras)
-                extracted_data.get('vendedor'),
-                extracted_data.get('ventas_gravables'),
-                extracted_data.get('ventas_exentas'),
-                extracted_data.get('impuesto'),
-                extracted_data.get('total_ingresos'),
-                extracted_data.get('efectivo'),
-                extracted_data.get('yappy'),
                 extracted_data.get('pos_clave'),
                 extracted_data.get('pos_visa_mc'),
-                extracted_data.get('total_pagos'),
-                debug_val, # Ahora es string o JSON
+                debug_val, 
                 json.dumps(extracted_data),
                 row_id
             )

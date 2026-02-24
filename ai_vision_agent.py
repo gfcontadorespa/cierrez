@@ -25,30 +25,19 @@ class AIVisionAgent:
 
         content_blocks = [
             {"type": "text", "text": """
-Analiza estas imágenes de un Cierre Z y extrae los datos en formato JSON puro.
-La información puede estar en varias imágenes (Encabezado, Ventas, Pagos).
+Analiza estas imágenes de comprobantes de pago (POS) y extrae los datos en formato JSON puro.
+Solo debes enfocarte en los cierres de tarjetas Visa/Mastercard y Clave.
 
 Campos requeridos:
-1. num_cierre (Número entero que sigue a 'Arqueo: Z Numero:', ej: 1044)
-2. fecha (Fecha del arqueo en formato YYYY-MM-DD, ej: '2025-09-20')
-3. caja (Identificador de la caja - EXTRAER ÚNICAMENTE LAS LETRAS DEL PREFIJO, ej: de 'AG1' extraer solo 'AG', de 'AA2' extraer solo 'AA'. No incluir números.)
-4. vendedor (Nombre del vendedor, ej: 'YISSEL REYES')
-5. ventas_gravables (Número: En la tabla 'IMPUESTOS', es el monto bajo 'BASE IMP.' de la línea 'IVA 7%' o 'IVA 10%')
-6. ventas_exentas (Número: En la tabla 'IMPUESTOS', es el monto bajo 'BASE IMP.' de la línea 'IVA 0%' o 'EXENTO')
-7. impuesto (Número: En la tabla 'IMPUESTOS', es el monto bajo 'Cuota' de la línea 'IVA 7%' o 'IVA 10%')
-8. total_ingresos (Número: ventas totales del día)
-9. efectivo (Número: monto en efectivo según reporte)
-10. yappy (Número: monto Yappy)
-11. pos_clave (Número: En la imagen de Clave, busca 'TOTALES GENERALES' o el 'TOTAL' al final de la tira. ej: 26.75)
-12. pos_visa_mc (Número: En la imagen de Visa/Mastercard, busca 'TOTALES GENERALES' o el 'TOTAL' al final de la tira que suma Visa y Mastercard. ej: 544.64)
-13. total_pagos (Número: suma de todos los pagos)
+1. pos_clave (Número: En la imagen de Clave, busca el 'TOTAL' al final de la tira. ej: 26.75)
+2. pos_visa_mc (Número: En la imagen de Visa/Mastercard, busca el 'TOTAL' al final de la tira que suma Visa y Mastercard. ej: 544.64)
 
-Validaciones críticas para imágenes de tarjetas (Visa/MC y Clave):
-- La fecha en la tira (ej. 20/09/25) DEBE coincidir con la fecha del Cierre Z.
+Validaciones críticas:
 - La tira DEBE decir 'CIERRE' o 'SETTLEMENT ACCEPTED'.
 - La tira de Visa/MC DEBE mencionar 'VISA' o 'MASTERCARD'.
 - La tira de Clave DEBE mencionar 'CLAVE'.
-Si alguna validación falla para una imagen específica, pon ese monto en 0, pero CONTINÚA extrayendo todos los demás campos de las otras imágenes normalmente. Reporta el motivo exacto del fallo en un campo 'debug_info' dentro del JSON.
+
+Si alguna validación falla para una imagen específica, pon ese monto en 0. Reporta el motivo exacto del fallo en un campo 'debug_info' dentro del JSON.
 
 Responde ÚNICAMENTE con el objeto JSON puro. No incluyas ```json ni texto adicional.
 """}
