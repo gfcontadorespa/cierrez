@@ -90,15 +90,18 @@ class IntelligentWorker:
             print(f"❌ Error descargando imagen {file_name}: {e}")
             return None
 
-    def process_pending_cierres(self):
+    def process_pending_cierres(self, limit=20):
         """
         Busca registros en tblcierresz que tengan al menos una imagen pero no OCR procesado.
+        Limitado a 'limit' registros por tanda para evitar consumo excesivo de créditos.
         """
-        query = """
+        query = f"""
         SELECT row_id, imagen, imagen_header, imagen_ventas, imagen_visa_mc, imagen_clave, etiqueta_sucursal 
         FROM tblcierresz 
         WHERE (imagen IS NOT NULL OR imagen_header IS NOT NULL OR imagen_ventas IS NOT NULL OR imagen_visa_mc IS NOT NULL OR imagen_clave IS NOT NULL)
-        AND (ocr_raw_text IS NULL OR ocr_raw_text = '');
+        AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
+        AND (fecha_adicion >= '2026-02-23 22:00:00')
+        LIMIT {limit};
         """
         pending = self.db.fetch_all(query)
         
@@ -130,7 +133,11 @@ class IntelligentWorker:
             extracted_data = self.ai.process_cierre(local_paths)
             
             if "error" in extracted_data:
+                error_msg = str(extracted_data['error']).lower()
                 print(f"❌ Error IA: {extracted_data['error']}")
+                if "insufficient_quota" in error_msg or "quota_exceeded" in error_msg:
+                    print("⚠️ Créditos de OpenAI agotados. Solicitando pausa del trabajador.")
+                    return True # Señal de pausa
                 continue
             
             print(f"✅ Datos extraídos de {len(local_paths)} imágenes: {extracted_data}")
@@ -181,14 +188,21 @@ class IntelligentWorker:
             
             # Limpiar imágenes locales
             for lp in local_paths:
-                if os.path.exists(lp):
+                if lp and os.path.exists(lp):
                     os.remove(lp)
+        
+        return False # No hay necesidad de pausa
 
     def run(self, interval=60):
         print(f"🚀 Intelligent Worker iniciado. Polling cada {interval} segundos...")
         while True:
             try:
-                self.process_pending_cierres()
+                should_pause = self.process_pending_cierres()
+                if should_pause:
+                    pause_time = 3600 # 1 hora
+                    print(f"⏸️ Trabajador pausado por 1 hora debido a falta de créditos.")
+                    time.sleep(pause_time)
+                    continue
             except Exception as e:
                 print(f"❌ Error en el loop del worker: {e}")
             
