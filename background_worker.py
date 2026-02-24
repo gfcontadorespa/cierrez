@@ -164,6 +164,10 @@ class IntelligentWorker:
             WHERE row_id = %s
             """
             
+            debug_val = extracted_data.get('debug_info')
+            if isinstance(debug_val, dict):
+                debug_val = json.dumps(debug_val)
+            
             params = (
                 extracted_data.get('num_cierre'),
                 extracted_data.get('fecha'),
@@ -178,7 +182,7 @@ class IntelligentWorker:
                 extracted_data.get('pos_clave'),
                 extracted_data.get('pos_visa_mc'),
                 extracted_data.get('total_pagos'),
-                extracted_data.get('debug_info'), # Guardamos el error de validación aquí
+                debug_val, # Ahora es string o JSON
                 json.dumps(extracted_data),
                 row_id
             )
