@@ -100,7 +100,7 @@ class IntelligentWorker:
         FROM tblcierresz 
         WHERE (imagen IS NOT NULL OR imagen_header IS NOT NULL OR imagen_ventas IS NOT NULL OR imagen_visa_mc IS NOT NULL OR imagen_clave IS NOT NULL)
         AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
-        AND (fecha_modifica >= CURRENT_DATE)
+        AND (fecha_modifica >= NOW() - INTERVAL '1 day')
         LIMIT {limit};
         """
         pending = self.db.fetch_all(query)
