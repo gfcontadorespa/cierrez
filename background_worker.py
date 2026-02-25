@@ -149,17 +149,20 @@ class IntelligentWorker:
             ai_clave = float(extracted_data.get('pos_clave') or 0.0)
             
             audit_msg = []
+            has_diff = False
             # Comparar Visa/MC
             if abs(float(manual_visa) - ai_visa) < 0.01:
                 audit_msg.append("✅ Visa/MC OK")
             else:
                 audit_msg.append(f"❌ Visa/MC Diff: AppSheet {manual_visa} vs Foto {ai_visa}")
+                has_diff = True
             
             # Comparar Clave
             if abs(float(manual_clave) - ai_clave) < 0.01:
                 audit_msg.append("✅ Clave OK")
             else:
                 audit_msg.append(f"❌ Clave Diff: AppSheet {manual_clave} vs Foto {ai_clave}")
+                has_diff = True
 
             # Combinar con posibles errores de validación de la IA
             final_comment = " | ".join(audit_msg)
@@ -168,6 +171,12 @@ class IntelligentWorker:
                 if isinstance(debug_val, dict):
                     debug_val = json.dumps(debug_val)
                 final_comment += f" | IA Note: {debug_val}"
+
+            # Si hay diferencia, enviar alerta por Telegram
+            if has_diff:
+                inv_num = record[1] if len(record) > 1 else str(row_id)
+                alert_text = f"🚨 *Alerta de Diferencia* 🚨\n\n📌 *Cierre*: {inv_num}\n🔍 *Auditoría*: {final_comment}"
+                self.send_telegram_alert(alert_text)
 
             # Actualizar Postgres (SOLO CAMPOS DE AUDITORÍA Y COMENTARIOS)
             update_query = """
@@ -193,6 +202,29 @@ class IntelligentWorker:
                     os.remove(lp)
         
         return False # No hay necesidad de pausa
+
+    def send_telegram_alert(self, message):
+        """
+        Envía una notificación a Telegram.
+        """
+        token = os.getenv("TELEGRAM_BOT_TOKEN")
+        chat_id = os.getenv("TELEGRAM_CHAT_ID")
+        if not token or not chat_id:
+            print("⚠️ Telegram no configurado (Token o Chat ID ausente).")
+            return
+
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        try:
+            r = requests.post(url, json=payload)
+            r.raise_for_status()
+            print("📤 Alerta enviada a Telegram.")
+        except Exception as e:
+            print(f"❌ Error enviando alerta a Telegram: {e}")
 
     def run(self, interval=60):
         print(f"🚀 Intelligent Worker iniciado. Polling cada {interval} segundos...")
