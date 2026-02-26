@@ -212,7 +212,7 @@ class IntelligentWorker:
         FROM tbl_depositos 
         WHERE (adjunto IS NOT NULL AND adjunto != '')
         AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
-        AND (created_at >= NOW() - INTERVAL '2 days')
+        AND (fecha_modifica >= NOW() - INTERVAL '2 days')
         LIMIT {limit};
         """
         # Nota: sucursal fue eliminada de la tabla física, usamos branch_id para relaciones.
