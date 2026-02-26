@@ -63,20 +63,31 @@ class IntelligentWorker:
             return None
 
         try:
-            folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
-            # Buscar el archivo por nombre y opcionalmente por carpeta padre
-            query = f"name = '{file_name}'"
-            if folder_id:
-                query += f" and '{folder_id}' in parents"
-                
-            results = self.drive_service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
-            items = results.get('files', [])
+            folder_ids_str = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
+            folder_ids = [fid.strip() for fid in folder_ids_str.split(",") if fid.strip()]
             
-            if not items:
-                print(f"❌ Imagen no encontrada en Drive: {file_name}")
+            # Buscar el archivo en cada carpeta proporcionada
+            file_id = None
+            for fid in folder_ids:
+                query = f"name = '{file_name}' and '{fid}' in parents"
+                results = self.drive_service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
+                items = results.get('files', [])
+                if items:
+                    file_id = items[0]['id']
+                    break
+            
+            # Si no se encontró en las carpetas específicas, intentar búsqueda global (opcional/seguridad)
+            if not file_id:
+                query = f"name = '{file_name}'"
+                results = self.drive_service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
+                items = results.get('files', [])
+                if items:
+                    file_id = items[0]['id']
+
+            if not file_id:
+                print(f"❌ Imagen no encontrada en ninguna carpeta de Drive: {file_name}")
                 return None
             
-            file_id = items[0]['id']
             request = self.drive_service.files().get_media(fileId=file_id)
             
             output_path = os.path.join(self.temp_dir, file_name)
