@@ -29,7 +29,7 @@ class IntelligentWorker:
         self.drive_service = self._init_drive_service()
         
         # Historial de notificaciones para evitar spam
-        self.last_summary_time = 0
+        self.last_summary_time = 0.0
         self.last_counts = (0, 0)
 
     def _init_drive_service(self):
@@ -151,6 +151,13 @@ class IntelligentWorker:
             if "error" in extracted_data:
                 error_msg = str(extracted_data['error']).lower()
                 print(f"❌ Error IA: {extracted_data['error']}")
+                
+                # MARCAR EN DB PARA NO REPETIR BUCLE INFINITO
+                self.db.execute_query(
+                    "UPDATE tblcierresz SET ocr_raw_text = %s, comentarios = %s, fecha_modifica = NOW() WHERE row_id = %s",
+                    (json.dumps(extracted_data), f"❌ AI Error: {extracted_data['error']}", row_id)
+                )
+                
                 if "insufficient_quota" in error_msg or "quota_exceeded" in error_msg:
                     print("⚠️ Créditos de OpenAI agotados. Solicitando pausa del trabajador.")
                     return len(pending), True # (count, should_pause)
@@ -188,8 +195,9 @@ class IntelligentWorker:
 
             # Si hay diferencia, enviar alerta por Telegram
             if has_diff:
-                inv_num = record[1] if len(record) > 1 else str(row_id)
-                alert_text = f"🚨 *Alerta de Diferencia* 🚨\n\n📌 *Cierre*: {inv_num}\n🔍 *Auditoría*: {final_comment}"
+                # El record[1] es imagen_header, necesitamos el invoice_number si lo queremos en el alerta
+                # Pero no lo pedimos en el SELECT. Vamos a usar row_id o mejorar el SELECT.
+                alert_text = f"🚨 *Alerta de Diferencia* 🚨\n\n📌 *ID*: {row_id}\n🔍 *Auditoría*: {final_comment}"
                 self.send_telegram_alert(alert_text)
 
             # Actualizar Postgres (SOLO CAMPOS DE AUDITORÍA Y COMENTARIOS)
@@ -260,6 +268,11 @@ class IntelligentWorker:
             
             if "error" in extracted_data:
                 print(f"❌ Error IA en depósito: {extracted_data['error']}")
+                # MARCAR EN DB
+                self.db.execute_query(
+                    "UPDATE tbl_depositos SET ocr_raw_text = %s, comentarios = %s, fecha_modifica = NOW() WHERE deposito_id = %s",
+                    (json.dumps(extracted_data), f"❌ AI Error: {extracted_data['error']}", dep_id)
+                )
                 continue
                 
             ai_monto = float(extracted_data.get('monto') or 0.0)
@@ -324,37 +337,67 @@ class IntelligentWorker:
         except Exception as e:
             print(f"❌ Error enviando alerta a Telegram: {e}")
 
+    def get_pending_counts(self):
+        """
+        Cuenta rápidamente cuántos cierres y depósitos hay pendientes de auditar.
+        """
+        q_z = """
+            SELECT count(*) FROM tblcierresz 
+            WHERE (
+                (imagen_header IS NOT NULL AND imagen_header != '') OR 
+                (imagen_ventas IS NOT NULL AND imagen_ventas != '') OR 
+                (imagen_visa_mc IS NOT NULL AND imagen_visa_mc != '') OR 
+                (imagen_clave IS NOT NULL AND imagen_clave != '')
+            )
+            AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
+            AND (fecha_modifica >= NOW() - INTERVAL '2 days');
+        """
+        q_d = """
+            SELECT count(*) FROM tbl_depositos 
+            WHERE (adjunto IS NOT NULL AND adjunto != '')
+            AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
+            AND (fecha_modifica >= NOW() - INTERVAL '2 days');
+        """
+        try:
+            res_z = self.db.fetch_one(q_z)[0]
+            res_d = self.db.fetch_one(q_d)[0]
+            return res_z, res_d
+        except:
+            return 0, 0
+
     def run(self, interval=60):
         print(f"🚀 Intelligent Worker iniciado. Polling cada {interval} segundos...")
         while True:
             try:
-                # 1. Procesar Cierres Z
-                count_z, should_pause = self.process_pending_cierres()
-                
-                # 2. Procesar Depósitos
-                count_d, _ = self.process_pending_depositos()
+                # 1. Prediction (Antes de procesar)
+                count_z, count_d = self.get_pending_counts()
                 
                 current_time = time.time()
                 counts_changed = (count_z, count_d) != self.last_counts
-                # Notificar si hay algo nuevo O si pasó más de 1 hora y sigue habiendo algo
-                should_notify = (count_z > 0 or count_d > 0) and (counts_changed or (current_time - self.last_summary_time > 3600))
-
-                if should_notify:
+                
+                if (count_z > 0 or count_d > 0) and (counts_changed or (current_time - self.last_summary_time > 3600)):
                     msg = "🤖 *Intelligent Worker Activo*\n\n"
                     if count_z > 0:
                         msg += f"📦 *Cierres Z*: {count_z} pendientes\n"
                     if count_d > 0:
                         msg += f"🏦 *Depósitos*: {count_d} pendientes\n"
-                    msg += "\n⏳ Procesando..."
+                    msg += "\n⏳ Empezando auditoría..."
                     self.send_telegram_alert(msg)
                     self.last_summary_time = current_time
                     self.last_counts = (count_z, count_d)
 
-                if should_pause:
-                    pause_time = 3600 # 1 hora
-                    print(f"⏸️ Trabajador pausado por 1 hora debido a falta de créditos.")
-                    time.sleep(pause_time)
-                    continue
+                # 2. Procesar
+                if count_z > 0:
+                    _, should_pause = self.process_pending_cierres()
+                    if should_pause:
+                        pause_time = 3600
+                        print(f"⏸️ Pausado por 1 hora por créditos.")
+                        time.sleep(pause_time)
+                        continue
+
+                if count_d > 0:
+                    self.process_pending_depositos()
+                
             except Exception as e:
                 print(f"❌ Error en el loop del worker: {e}")
             
