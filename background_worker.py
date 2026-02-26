@@ -27,6 +27,10 @@ class IntelligentWorker:
         
         # Drive Service setup
         self.drive_service = self._init_drive_service()
+        
+        # Historial de notificaciones para evitar spam
+        self.last_summary_time = 0
+        self.last_counts = (0, 0)
 
     def _init_drive_service(self):
         try:
@@ -98,9 +102,14 @@ class IntelligentWorker:
         query = f"""
         SELECT row_id, imagen_header, imagen_ventas, imagen_visa_mc, imagen_clave, pos_visa_mc, pos_clave 
         FROM tblcierresz 
-        WHERE (imagen_header IS NOT NULL OR imagen_ventas IS NOT NULL OR imagen_visa_mc IS NOT NULL OR imagen_clave IS NOT NULL)
+        WHERE (
+            (imagen_header IS NOT NULL AND imagen_header != '') OR 
+            (imagen_ventas IS NOT NULL AND imagen_ventas != '') OR 
+            (imagen_visa_mc IS NOT NULL AND imagen_visa_mc != '') OR 
+            (imagen_clave IS NOT NULL AND imagen_clave != '')
+        )
         AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
-        AND (fecha_modifica >= NOW() - INTERVAL '1 day')
+        AND (fecha_modifica >= NOW() - INTERVAL '2 days')
         LIMIT {limit};
         """
         pending = self.db.fetch_all(query)
@@ -129,6 +138,11 @@ class IntelligentWorker:
                         local_paths.append(local_path)
             
             if not local_paths:
+                print(f"⚠️ No se pudieron descargar imágenes para {row_id}")
+                self.db.execute_query(
+                    "UPDATE tblcierresz SET ocr_raw_text = '{\"error\": \"images_not_found_on_drive\"}', fecha_modifica = NOW() WHERE row_id = %s",
+                    (row_id,)
+                )
                 continue
             
             # Llamamos a la AI con la lista de imágenes
@@ -212,7 +226,7 @@ class IntelligentWorker:
         FROM tbl_depositos 
         WHERE (adjunto IS NOT NULL AND adjunto != '')
         AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
-        AND (fecha_modifica >= NOW() - INTERVAL '2 days')
+        AND (fecha_modifica >= NOW() - INTERVAL '3 days')
         LIMIT {limit};
         """
         # Nota: sucursal fue eliminada de la tabla física, usamos branch_id para relaciones.
@@ -235,6 +249,11 @@ class IntelligentWorker:
             local_path = self.download_image(file_name)
             
             if not local_path:
+                print(f"⚠️ No se pudo descargar imagen para depósito {dep_id}")
+                self.db.execute_query(
+                    "UPDATE tbl_depositos SET ocr_raw_text = '{\"error\": \"image_not_found_on_drive\"}', fecha_modifica = NOW() WHERE deposito_id = %s",
+                    (dep_id,)
+                )
                 continue
                 
             extracted_data = self.ai.process_deposito(local_path)
@@ -309,13 +328,18 @@ class IntelligentWorker:
         print(f"🚀 Intelligent Worker iniciado. Polling cada {interval} segundos...")
         while True:
             try:
-                # 1. Procesar Cierres Z (Retorna total procesado y si debe pausar)
+                # 1. Procesar Cierres Z
                 count_z, should_pause = self.process_pending_cierres()
                 
                 # 2. Procesar Depósitos
                 count_d, _ = self.process_pending_depositos()
                 
-                if count_z > 0 or count_d > 0:
+                current_time = time.time()
+                counts_changed = (count_z, count_d) != self.last_counts
+                # Notificar si hay algo nuevo O si pasó más de 1 hora y sigue habiendo algo
+                should_notify = (count_z > 0 or count_d > 0) and (counts_changed or (current_time - self.last_summary_time > 3600))
+
+                if should_notify:
                     msg = "🤖 *Intelligent Worker Activo*\n\n"
                     if count_z > 0:
                         msg += f"📦 *Cierres Z*: {count_z} pendientes\n"
@@ -323,6 +347,8 @@ class IntelligentWorker:
                         msg += f"🏦 *Depósitos*: {count_d} pendientes\n"
                     msg += "\n⏳ Procesando..."
                     self.send_telegram_alert(msg)
+                    self.last_summary_time = current_time
+                    self.last_counts = (count_z, count_d)
 
                 if should_pause:
                     pause_time = 3600 # 1 hora
