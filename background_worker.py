@@ -385,6 +385,12 @@ class IntelligentWorker:
                     self.send_telegram_alert(msg)
                     self.last_summary_time = current_time
                     self.last_counts = (count_z, count_d)
+                
+                elif (count_z == 0 and count_d == 0) and self.last_counts != (0, 0):
+                    # Acabamos de vaciar la cola
+                    self.send_telegram_alert("✅ *Auditoría completada*\n\nTodos los registros pendientes han sido procesados. El trabajador ahora está en modo de espera. 💤")
+                    self.last_counts = (0, 0)
+                    self.last_summary_time = current_time
 
                 # 2. Procesar
                 if count_z > 0:
