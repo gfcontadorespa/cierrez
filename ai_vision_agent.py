@@ -29,8 +29,8 @@ Analiza estas imágenes de comprobantes de pago (POS) y extrae los datos en form
 Solo debes enfocarte en los cierres de tarjetas Visa/Mastercard y Clave.
 
 Campos requeridos:
-1. pos_clave (Número: En la imagen de Clave, busca el 'TOTAL' al final de la tira. ej: 26.75)
-2. pos_visa_mc (Número: En la imagen de Visa/Mastercard, busca el 'TOTAL' al final de la tira que suma Visa y Mastercard. ej: 544.64)
+1. pos_clave (Número: En la imagen de Clave, busca el 'TOTAL' debajo del grupo 'TOTALES GENERALES'. ej: 26.75)
+2. pos_visa_mc (Número: En la imagen de Visa/Mastercard, busca el 'TOTAL' debajo del grupo 'TOTALES GENERALES'. También puedes usar como referencia el valor que tenga una marca de gancho (check) a su lado. ej: 108.13)
 
 Validaciones críticas:
 - La tira DEBE decir 'CIERRE' o 'SETTLEMENT ACCEPTED'.
