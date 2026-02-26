@@ -200,11 +200,15 @@ class IntelligentWorker:
                 alert_text = f"🚨 *Alerta de Diferencia* 🚨\n\n📌 *ID*: {row_id}\n🔍 *Auditoría*: {final_comment}"
                 self.send_telegram_alert(alert_text)
 
-            # Actualizar Postgres (SOLO CAMPOS DE AUDITORÍA Y COMENTARIOS)
+            # Actualizar Postgres (INCLUYENDO NUEVAS COLUMNAS DE AUDITORÍA)
             update_query = """
             UPDATE tblcierresz SET
                 comentarios = %s,
                 ocr_raw_text = %s,
+                audit_pos_visa_mc = %s,
+                audit_pos_clave = %s,
+                audit_diff_visa_mc = %s,
+                audit_diff_clave = %s,
                 fecha_modifica = NOW()
             WHERE row_id = %s
             """
@@ -212,6 +216,10 @@ class IntelligentWorker:
             params = (
                 final_comment, 
                 json.dumps(extracted_data),
+                ai_visa,
+                ai_clave,
+                float(manual_visa) - ai_visa,
+                float(manual_clave) - ai_clave,
                 row_id
             )
             
