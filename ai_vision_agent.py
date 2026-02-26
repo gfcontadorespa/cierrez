@@ -77,15 +77,16 @@ Responde ÚNICAMENTE con el objeto JSON puro. No incluyas ```json ni texto adici
         base64_image = self._encode_image(image_path)
         content_blocks = [
             {"type": "text", "text": """
-Analiza esta imagen de un volante de depósito bancario y extrae los datos en formato JSON puro.
+Analiza esta imagen de un volante de depósito bancario (ej: Banco General, Banistmo, etc.) y extrae los datos en formato JSON puro.
 
 Campos requeridos:
-1. monto (Número: El total depositado. ej: 154.50)
-2. fecha (Texto: La fecha que aparece en el sello o impreso del banco. ej: '2026-02-25')
+1. monto (Número: Busca el 'TOTAL PROCESADO' impreso por la máquina o el 'TOTAL US$' escrito a mano. ej: 130.58)
+2. fecha (Texto: Busca la fecha impresa al final del ticket. Formato YYYY-MM-DD. ej: '2026-01-16')
 
 Validaciones críticas:
-- Debe ser un volante de depósito (Banco General, Banistmo, etc.) o un comprobante de transferencia/Yappy.
-- Si no parece un comprobante bancario legítimo, pon el monto en 0 y explica por qué en 'debug_info'.
+- Debe ser un volante de depósito bancario legítimo o un comprobante de transferencia (Yappy/ACH).
+- Si hay varios montos, prioriza el que tenga el sello del banco o esté impreso por la terminal bancaria.
+- Si no parece un comprobante bancario, pon el monto en 0 y explica por qué en 'debug_info'.
 
 Responde ÚNICAMENTE con el objeto JSON puro.
 """},
