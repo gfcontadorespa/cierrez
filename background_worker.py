@@ -208,15 +208,14 @@ class IntelligentWorker:
         Busca registros en tbl_depositos que tengan imagen pero no auditoría.
         """
         query = f"""
-        SELECT deposito_id, adjunto, monto, sucursal, branch_id
+        SELECT deposito_id, adjunto, monto, branch_id
         FROM tbl_depositos 
         WHERE (adjunto IS NOT NULL AND adjunto != '')
         AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
         AND (created_at >= NOW() - INTERVAL '2 days')
         LIMIT {limit};
         """
-        # Nota: sucursal puede ser NULL si se borró la columna, pero el branch_id está.
-        # En el run anterior limpiamos sucursal, así que confiaremos en branch_id.
+        # Nota: sucursal fue eliminada de la tabla física, usamos branch_id para relaciones.
         pending = self.db.fetch_all(query)
         
         if not pending:
@@ -228,7 +227,7 @@ class IntelligentWorker:
             dep_id = record[0]
             adjunto_path = record[1]
             monto_manual = record[2] or 0.0
-            branch_id = record[4]
+            branch_id = record[3] # Antes era 4 cuando existía sucursal
             
             print(f"Procesando depósito {dep_id}")
             
