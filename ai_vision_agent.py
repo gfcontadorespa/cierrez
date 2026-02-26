@@ -28,16 +28,14 @@ class AIVisionAgent:
 Analiza estas imágenes de comprobantes de pago (POS) y extrae los datos en formato JSON puro.
 Solo debes enfocarte en los cierres de tarjetas Visa/Mastercard y Clave.
 
-Campos requeridos:
-1. pos_clave (Número: En la imagen de Clave, busca el 'TOTAL' debajo del grupo 'TOTALES GENERALES'. ej: 26.75)
-2. pos_visa_mc (Número: En la imagen de Visa/Mastercard, busca el 'TOTAL' debajo del grupo 'TOTALES GENERALES'. También puedes usar como referencia el valor que tenga una marca de gancho (check) a su lado. ej: 108.13)
+Campos requeridos (Consolida todos los tickets en un único objeto JSON):
+1. pos_clave (Número: Busca el 'TOTAL' debajo de 'TOTALES GENERALES' o el valor marcado con un gancho en el ticket que mencione 'CLAVE'. ej: 26.75)
+2. pos_visa_mc (Número: Busca el 'TOTAL' debajo de 'TOTALES GENERALES' o el valor marcado con un gancho en el ticket que mencione 'VISA' o 'MASTERCARD'. ej: 108.13)
 
 Validaciones críticas:
 - La tira DEBE decir 'CIERRE' o 'SETTLEMENT ACCEPTED'.
-- La tira de Visa/MC DEBE mencionar 'VISA' o 'MASTERCARD'.
-- La tira de Clave DEBE mencionar 'CLAVE'.
-
-Si alguna validación falla para una imagen específica, pon ese monto en 0. Reporta el motivo exacto del fallo en un campo 'debug_info' dentro del JSON.
+- Si hay varias imágenes, suma los totales si pertenecen a la misma categoría, o toma el 'TOTAL GENERAL' si el ticket lo incluye.
+- Responde con un ÚNICO objeto JSON, no una lista. ej: {"pos_clave": 10.0, "pos_visa_mc": 20.0, "debug_info": "..."}
 
 Responde ÚNICAMENTE con el objeto JSON puro. No incluyas ```json ni texto adicional.
 """}
