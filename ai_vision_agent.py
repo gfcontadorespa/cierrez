@@ -80,13 +80,13 @@ Responde ÚNICAMENTE con el objeto JSON puro. No incluyas ```json ni texto adici
 Analiza esta imagen de un volante de depósito bancario (ej: Banco General, Banistmo, etc.) y extrae los datos en formato JSON puro.
 
 Campos requeridos:
-1. monto (Número: Busca el 'TOTAL PROCESADO' impreso por la máquina o el 'TOTAL US$' escrito a mano. ej: 130.58)
+1. monto (Número: Busca el 'TOTAL PROCESADO' o 'EFECTIVO' impreso por la máquina, o el 'TOTAL US$' escrito a mano. ej: 130.58)
 2. fecha (Texto: Busca la fecha impresa al final del ticket. Formato YYYY-MM-DD. ej: '2026-01-16')
 
 Validaciones críticas:
-- Debe ser un volante de depósito bancario legítimo o un comprobante de transferencia (Yappy/ACH).
+- Debe ser un volante de depósito bancario legítimo.
 - Si hay varios montos, prioriza el que tenga el sello del banco o esté impreso por la terminal bancaria.
-- Si no parece un comprobante bancario, pon el monto en 0 y explica por qué en 'debug_info'.
+- Si no parece un comprobante bancario legítimo, pon el monto en 0 y explica por qué en 'debug_info'.
 
 Responde ÚNICAMENTE con el objeto JSON puro.
 """},
