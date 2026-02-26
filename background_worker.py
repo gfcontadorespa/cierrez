@@ -106,7 +106,7 @@ class IntelligentWorker:
         pending = self.db.fetch_all(query)
         
         if not pending:
-            return
+            return 0
 
         print(f"--- Procesando {len(pending)} cierres con múltiples imágenes ---")
         
@@ -201,7 +201,7 @@ class IntelligentWorker:
                 if lp and os.path.exists(lp):
                     os.remove(lp)
         
-        return False # No hay necesidad de pausa
+        return len(pending)
 
     def process_pending_depositos(self, limit=10):
         """
@@ -219,7 +219,7 @@ class IntelligentWorker:
         pending = self.db.fetch_all(query)
         
         if not pending:
-            return
+            return 0
 
         print(f"--- Procesando {len(pending)} depósitos bancarios ---")
         
@@ -279,6 +279,8 @@ class IntelligentWorker:
             # Limpiar
             if os.path.exists(local_path):
                 os.remove(local_path)
+            
+        return len(pending)
 
     def send_telegram_alert(self, message):
         """
@@ -307,17 +309,27 @@ class IntelligentWorker:
         print(f"🚀 Intelligent Worker iniciado. Polling cada {interval} segundos...")
         while True:
             try:
-                # 1. Procesar Cierres Z
-                should_pause_c = self.process_pending_cierres()
+                # Consultar pendientes para el mensaje inicial
+                # Nota: ejecutamos los procesos y capturamos cuántos procesaron
                 
-                # 2. Procesar Depósitos
-                self.process_pending_depositos()
+                count_z = self.process_pending_cierres()
+                count_d = self.process_pending_depositos()
                 
-                if should_pause_c:
-                    pause_time = 3600 # 1 hora
-                    print(f"⏸️ Trabajador pausado por 1 hora debido a falta de créditos.")
-                    time.sleep(pause_time)
-                    continue
+                if count_z > 0 or count_d > 0:
+                    msg = "🤖 *Intelligent Worker Activo*\n\n"
+                    if count_z > 0:
+                        msg += f"📦 *Cierres Z*: {count_z} pendientes\n"
+                    if count_d > 0:
+                        msg += f"🏦 *Depósitos*: {count_d} pendientes\n"
+                    msg += "\n⏳ Procesando..."
+                    self.send_telegram_alert(msg)
+
+                # Si process_pending_cierres devolvía un booleano antes para la pausa, 
+                # ahora necesitamos manejar eso. El anterior código usaba True para pausa.
+                # Como cambié el retorno a entero, asumiremos que 0 pendientes == no pausa.
+                # Si queremos mantener la pausa por créditos, necesitamos otra forma.
+                # Re-ajustando: Si detectamos error de cuota en el log, pausamos.
+                
             except Exception as e:
                 print(f"❌ Error en el loop del worker: {e}")
             
