@@ -96,9 +96,9 @@ class IntelligentWorker:
         Limitado a 'limit' registros por tanda para evitar consumo excesivo de créditos.
         """
         query = f"""
-        SELECT row_id, imagen, imagen_header, imagen_ventas, imagen_visa_mc, imagen_clave, pos_visa_mc, pos_clave 
+        SELECT row_id, imagen_header, imagen_ventas, imagen_visa_mc, imagen_clave, pos_visa_mc, pos_clave 
         FROM tblcierresz 
-        WHERE (imagen IS NOT NULL OR imagen_header IS NOT NULL OR imagen_ventas IS NOT NULL OR imagen_visa_mc IS NOT NULL OR imagen_clave IS NOT NULL)
+        WHERE (imagen_header IS NOT NULL OR imagen_ventas IS NOT NULL OR imagen_visa_mc IS NOT NULL OR imagen_clave IS NOT NULL)
         AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
         AND (fecha_modifica >= NOW() - INTERVAL '1 day')
         LIMIT {limit};
@@ -112,11 +112,11 @@ class IntelligentWorker:
         
         for record in pending:
             row_id = record[0]
-            # Columnas 1 a 5 son las rutas de las imágenes
-            image_paths_in_db = record[1:6]
-            # sucursal = record[6] -- Removido etiqueta_sucursal porque no existe en esta tabla
-            manual_visa = record[6] or 0.0
-            manual_clave = record[7] or 0.0
+            # Columnas 1 a 4 son las rutas de las imágenes
+            image_paths_in_db = record[1:5]
+            # sucursal = record[5] -- Removido etiqueta_sucursal porque no existe en esta tabla
+            manual_visa = record[5] or 0.0
+            manual_clave = record[6] or 0.0
             
             local_paths = []
             print(f"Procesando cierre {row_id}")
