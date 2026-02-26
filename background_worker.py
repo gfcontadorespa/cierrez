@@ -203,6 +203,84 @@ class IntelligentWorker:
         
         return False # No hay necesidad de pausa
 
+    def process_pending_depositos(self, limit=10):
+        """
+        Busca registros en tbl_depositos que tengan imagen pero no auditoría.
+        """
+        query = f"""
+        SELECT deposito_id, adjunto, monto, sucursal, branch_id
+        FROM tbl_depositos 
+        WHERE (adjunto IS NOT NULL AND adjunto != '')
+        AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
+        AND (created_at >= NOW() - INTERVAL '2 days')
+        LIMIT {limit};
+        """
+        # Nota: sucursal puede ser NULL si se borró la columna, pero el branch_id está.
+        # En el run anterior limpiamos sucursal, así que confiaremos en branch_id.
+        pending = self.db.fetch_all(query)
+        
+        if not pending:
+            return
+
+        print(f"--- Procesando {len(pending)} depósitos bancarios ---")
+        
+        for record in pending:
+            dep_id = record[0]
+            adjunto_path = record[1]
+            monto_manual = record[2] or 0.0
+            branch_id = record[4]
+            
+            print(f"Procesando depósito {dep_id}")
+            
+            file_name = os.path.basename(adjunto_path)
+            local_path = self.download_image(file_name)
+            
+            if not local_path:
+                continue
+                
+            extracted_data = self.ai.process_deposito(local_path)
+            
+            if "error" in extracted_data:
+                print(f"❌ Error IA en depósito: {extracted_data['error']}")
+                continue
+                
+            ai_monto = float(extracted_data.get('monto') or 0.0)
+            ai_fecha = extracted_data.get('fecha') or "No detectada"
+            
+            diff = abs(float(monto_manual) - ai_monto)
+            is_ok = diff < 0.01
+            
+            if is_ok:
+                audit_msg = f"✅ Depósito OK (Foto: ${ai_monto}, Fecha: {ai_fecha})"
+            else:
+                audit_msg = f"❌ Diferencia Depósito: AppSheet ${monto_manual} vs Foto ${ai_monto} | Fecha Foto: {ai_fecha}"
+                # Alerta Telegram
+                alert_text = f"🏦 *Alerta de Depósito* 🏦\n\n📌 *ID*: {dep_id}\n🔍 *Auditoría*: {audit_msg}"
+                self.send_telegram_alert(alert_text)
+                
+            # Actualizar DB
+            update_query = """
+            UPDATE tbl_depositos SET
+                comentarios = COALESCE(comentarios, '') || ' | ' || %s,
+                ocr_raw_text = %s,
+                audit_monto = %s,
+                audit_diferencia = %s
+            WHERE deposito_id = %s
+            """
+            params = (
+                audit_msg,
+                json.dumps(extracted_data),
+                ai_monto,
+                float(monto_manual) - ai_monto,
+                dep_id
+            )
+            self.db.execute_query(update_query, params)
+            print(f"✅ Depósito {dep_id} auditado.")
+            
+            # Limpiar
+            if os.path.exists(local_path):
+                os.remove(local_path)
+
     def send_telegram_alert(self, message):
         """
         Envía una notificación a Telegram.
@@ -230,8 +308,13 @@ class IntelligentWorker:
         print(f"🚀 Intelligent Worker iniciado. Polling cada {interval} segundos...")
         while True:
             try:
-                should_pause = self.process_pending_cierres()
-                if should_pause:
+                # 1. Procesar Cierres Z
+                should_pause_c = self.process_pending_cierres()
+                
+                # 2. Procesar Depósitos
+                self.process_pending_depositos()
+                
+                if should_pause_c:
                     pause_time = 3600 # 1 hora
                     print(f"⏸️ Trabajador pausado por 1 hora debido a falta de créditos.")
                     time.sleep(pause_time)

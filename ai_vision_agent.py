@@ -67,6 +67,50 @@ Responde ÚNICAMENTE con el objeto JSON puro. No incluyas ```json ni texto adici
             print(f"Error procesando imágenes con AI Vision: {e}")
             return {"error": str(e)}
 
+    def process_deposito(self, image_path):
+        """
+        Analiza una imagen de un volante de depósito bancario.
+        """
+        if not os.path.exists(image_path):
+            return {"error": "Archivo no encontrado"}
+
+        base64_image = self._encode_image(image_path)
+        content_blocks = [
+            {"type": "text", "text": """
+Analiza esta imagen de un volante de depósito bancario y extrae los datos en formato JSON puro.
+
+Campos requeridos:
+1. monto (Número: El total depositado. ej: 154.50)
+2. fecha (Texto: La fecha que aparece en el sello o impreso del banco. ej: '2026-02-25')
+
+Validaciones críticas:
+- Debe ser un volante de depósito (Banco General, Banistmo, etc.) o un comprobante de transferencia/Yappy.
+- Si no parece un comprobante bancario legítimo, pon el monto en 0 y explica por qué en 'debug_info'.
+
+Responde ÚNICAMENTE con el objeto JSON puro.
+"""},
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+            }
+        ]
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": content_blocks}],
+                max_tokens=400,
+            )
+            
+            content = response.choices[0].message.content.strip()
+            if content.startswith("```json"):
+                content = content.replace("```json", "").replace("```", "").strip()
+            
+            return json.loads(content)
+        except Exception as e:
+            print(f"Error procesando depósito con AI Vision: {e}")
+            return {"error": str(e)}
+
 if __name__ == "__main__":
     # Test simple (necesita una imagen real para funcionar)
     agent = AIVisionAgent()
