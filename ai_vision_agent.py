@@ -26,16 +26,15 @@ class AIVisionAgent:
         content_blocks = [
             {"type": "text", "text": """
 Analiza estas imágenes de comprobantes de pago (POS) y extrae los datos en formato JSON puro.
-Solo debes enfocarte en los cierres de tarjetas Visa/Mastercard y Clave.
+Recibirás una imagen para 'CLAVE' y otra para 'VISA/MASTERCARD' (o ambas en un solo cierre).
 
-Campos requeridos (Consolida todos los tickets en un único objeto JSON):
-1. pos_clave (Número: Busca el 'TOTAL' debajo de 'TOTALES GENERALES' o el valor marcado con un gancho en el ticket que mencione 'CLAVE'. ej: 26.75)
+Campos requeridos:
+1. pos_clave (Número: Busca el 'TOTAL' debajo de 'TOTALES GENERALES' en el ticket que mencione 'CLAVE'. Si no hay ticket de Clave, pon 0. ej: 26.75)
 2. pos_visa_mc (Número: Busca el 'TOTAL' debajo de 'TOTALES GENERALES' o el valor marcado con un gancho en el ticket que mencione 'VISA' o 'MASTERCARD'. ej: 108.13)
 
 Validaciones críticas:
 - La tira DEBE decir 'CIERRE' o 'SETTLEMENT ACCEPTED'.
-- Si hay varias imágenes, suma los totales si pertenecen a la misma categoría, o toma el 'TOTAL GENERAL' si el ticket lo incluye.
-- Responde con un ÚNICO objeto JSON, no una lista. ej: {"pos_clave": 10.0, "pos_visa_mc": 20.0, "debug_info": "..."}
+- Responde con un ÚNICO objeto JSON plano. ej: {"pos_clave": 10.0, "pos_visa_mc": 20.0, "debug_info": "..."}
 
 Responde ÚNICAMENTE con el objeto JSON puro. No incluyas ```json ni texto adicional.
 """}
@@ -75,15 +74,15 @@ Responde ÚNICAMENTE con el objeto JSON puro. No incluyas ```json ni texto adici
         base64_image = self._encode_image(image_path)
         content_blocks = [
             {"type": "text", "text": """
-Analiza esta imagen de un volante de depósito bancario (ej: Banco General, Banistmo, etc.) y extrae los datos en formato JSON puro.
+Analiza esta imagen de un volante de depósito bancario legítimo y extrae los datos en formato JSON puro. Solo hay UNA foto por depósito.
 
 Campos requeridos:
 1. monto (Número: Busca el 'TOTAL PROCESADO' o 'EFECTIVO' impreso por la máquina, o el 'TOTAL US$' escrito a mano. ej: 130.58)
-2. fecha (Texto: Busca la fecha impresa al final del ticket. Formato YYYY-MM-DD. ej: '2026-01-16')
+2. fecha (Texto: Busca la fecha de depósito impresa. Formato YYYY-MM-DD. ej: '2026-01-16')
 
 Validaciones críticas:
 - Debe ser un volante de depósito bancario legítimo.
-- Si hay varios montos, prioriza el que tenga el sello del banco o esté impreso por la terminal bancaria.
+- Prioriza siempre el monto impreso por la terminal bancaria o el que tenga el sello.
 - Si no parece un comprobante bancario legítimo, pon el monto en 0 y explica por qué en 'debug_info'.
 
 Responde ÚNICAMENTE con el objeto JSON puro.
