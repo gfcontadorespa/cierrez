@@ -12,6 +12,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 import io
 
+from datetime import datetime, time as dtime, timedelta, timezone
 from google.oauth2.credentials import Credentials
 
 load_dotenv()
@@ -31,6 +32,13 @@ class IntelligentWorker:
         # Historial de notificaciones para evitar spam
         self.last_summary_time = 0.0
         self.last_counts = (0, 0)
+        self.last_health_check_date = None # type: ignore
+
+    def get_panama_time(self):
+        """
+        Retorna la hora actual en GMT-5 (Panamá).
+        """
+        return datetime.now(timezone(timedelta(hours=-5)))
 
     def _init_drive_service(self):
         try:
@@ -381,14 +389,124 @@ class IntelligentWorker:
             res_z = self.db.fetch_one(q_z)[0]
             res_d = self.db.fetch_one(q_d)[0]
             return res_z, res_d
-        except:
+        except Exception as e:
+            print(f"❌ Error obteniendo conteos pendientes: {e}")
             return 0, 0
 
+    def perform_daily_health_check(self, days_to_check=30):
+        """
+        Realiza una auditoría de integridad de los últimos N días.
+        Busca días faltantes y duplicados para todas las sucursales activas.
+        """
+        print(f"🏥 Iniciando Auditoría de Salud de Datos (Últimos {days_to_check} días)...")
+        
+        # Rango de fechas
+        end_date = self.get_panama_time().date()
+        start_date = end_date - timedelta(days=days_to_check)
+        all_dates = [start_date + timedelta(days=x) for x in range((end_date - start_date).days + 1)]
+        
+        query_branches = "SELECT branch_id, etiqueta_suc FROM tblsucursales WHERE active = TRUE"
+        branches = self.db.fetch_all(query_branches)
+        
+        # Obtener exclusiones del calendario especial para el rango
+        query_excl = """
+        SELECT fecha, branch_id, es_opcional 
+        FROM tbl_calendario_especial 
+        WHERE fecha BETWEEN %s AND %s
+        """
+        exclusions = self.db.fetch_all(query_excl, (start_date, end_date))
+        
+        # Mapeo de exclusiones: {(fecha, branch_id): es_opcional, (fecha, None): es_opcional}
+        excl_map = {}
+        for f, b, opt in exclusions:
+            excl_map[(f, b)] = opt
+
+        summary_lines = []
+        branches_with_issues = 0
+        
+        for b_id, b_label in branches:
+            query = """
+            SELECT invoice_date 
+            FROM tblcierresz 
+            WHERE branch_id = %s 
+            AND invoice_date BETWEEN %s AND %s
+            ORDER BY invoice_date
+            """
+            res = self.db.fetch_all(query, (b_id, start_date, end_date))
+            # Asegurar que sean objetos date (algunas configuraciones pueden devolver strings)
+            dates_in_db = []
+            for row in res:
+                d = row[0]
+                if isinstance(d, str):
+                    try:
+                        d = datetime.strptime(d, '%Y-%m-%d').date()
+                    except:
+                        continue
+                dates_in_db.append(d)
+            
+            # Faltantes
+            missing_raw = [d for d in all_dates if d not in dates_in_db]
+            
+            # Filtrar faltantes usando el calendario especial
+            missing = []
+            for d in missing_raw:
+                # Si existe una exclusión global (branch_id IS NULL) o específica para esta rama
+                is_excluded = excl_map.get((d, None)) or excl_map.get((d, b_id))
+                if not is_excluded:
+                    missing.append(d)
+
+            # Duplicados
+            from collections import Counter
+            duplicates = [d for d, count in Counter(dates_in_db).items() if count > 1]
+            
+            if missing or duplicates:
+                branches_with_issues += 1
+                branch_msg = f"📍 *{b_label}*:\n"
+                if missing:
+                    # Agrupar fechas para no saturar el mensaje si son muchas
+                    if len(missing) > 5:
+                        branch_msg += f"  - ⚠️ {len(missing)} días faltantes.\n"
+                    else:
+                        branch_msg += f"  - ⚠️ Faltan: {', '.join(d.strftime('%d/%m') for d in missing)}\n"
+                if duplicates:
+                    branch_msg += f"  - 👯 Duplicados: {', '.join(d.strftime('%d/%m') for d in duplicates)}\n"
+                summary_lines.append(branch_msg)
+
+        # Construir y enviar alerta
+        header = f"📋 *REPORTE DIARIO DE SALUD* ({end_date.strftime('%d/%m/%Y')})\n"
+        header += f"Rango: {start_date.strftime('%d/%m')} al {end_date.strftime('%d/%m')}\n\n"
+        
+        if not summary_lines:
+            header += "✅ ¡Todo en orden! No se encontraron faltantes ni duplicados."
+        else:
+            header += f"Se encontraron inconsistencias en {branches_with_issues} sucursales:\n\n"
+            header += "\n".join(summary_lines)
+            
+        self.send_telegram_alert(header)
+        print("✅ Auditoría de salud completada y enviada.")
+
     def run(self, interval=60):
-        print(f"🚀 Intelligent Worker iniciado. Polling cada {interval} segundos...")
+        print(f"🚀 Intelligent Worker iniciado (GMT-5). Polling cada {interval} segundos...")
         while True:
             try:
-                # 1. Prediction (Antes de procesar)
+                now_panama = self.get_panama_time()
+                current_time = now_panama.time()
+                current_date = now_panama.date()
+
+                # --- 1. SUSPENSIÓN (12:00 AM - 7:00 AM) ---
+                if dtime(0, 0) <= current_time <= dtime(7, 0):
+                    if interval != 1800: # Si no estamos en modo ahorro, avisar
+                        print(f"💤 Horario de suspensión (00:00-07:00). Durmiendo...")
+                    time.sleep(1800) # Dormir 30 min
+                    continue
+
+                # --- 2. AUDITORÍA DIARIA (9:00 PM) ---
+                if current_time >= dtime(21, 0) and self.last_health_check_date != current_date:
+                    self.perform_daily_health_check(days_to_check=30)
+                    self.last_health_check_date = current_date
+
+                # --- 3. PROCESAMIENTO NORMAL ---
+                # Prediction (Antes de procesar)
                 count_z, count_d = self.get_pending_counts()
                 
                 current_time = time.time()
