@@ -400,8 +400,8 @@ class IntelligentWorker:
         """
         print(f"🏥 Iniciando Auditoría de Salud de Datos (Últimos {days_to_check} días)...")
         
-        # Rango de fechas
-        end_date = self.get_panama_time().date()
+        # Rango de fechas (Excluyendo hoy para dar tiempo a registrar)
+        end_date = self.get_panama_time().date() - timedelta(days=1)
         start_date = end_date - timedelta(days=days_to_check)
         all_dates = [start_date + timedelta(days=x) for x in range((end_date - start_date).days + 1)]
         
