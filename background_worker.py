@@ -63,6 +63,37 @@ class IntelligentWorker:
             print(f"❌ Error inicializando Drive Service: {e}")
             return None
 
+    def _is_ocr_confusion(self, manual_val, ai_val):
+        """
+        Calcula si la diferencia entre dos montos es excusable por un error común de OCR.
+        Soporta confusión exacta de 1 carácter en pares conocidos como 5/6, 3/8, 1/7.
+        """
+        try:
+            m_val = float(manual_val)
+            a_val = float(ai_val)
+        except ValueError:
+            return False
+
+        if abs(m_val - a_val) < 0.01:
+            return True
+
+        str_man = f"{m_val:.2f}"
+        str_ai = f"{a_val:.2f}"
+
+        if len(str_man) != len(str_ai):
+            return False
+
+        differences = 0
+        confusions = {('5', '6'), ('6', '5'), ('3', '8'), ('8', '3'), ('1', '7'), ('7', '1'), ('0', '8'), ('8', '0')}
+
+        for c1, c2 in zip(str_man, str_ai):
+            if c1 != c2:
+                differences += 1
+                if (c1, c2) not in confusions:
+                    return False
+
+        return differences == 1
+
     def download_image(self, file_name):
         """
         Busca y descarga una imagen de Drive dentro de la carpeta configurada.
@@ -119,16 +150,20 @@ class IntelligentWorker:
         Limitado a 'limit' registros por tanda para evitar consumo excesivo de créditos.
         """
         query = f"""
-        SELECT row_id, imagen_header, imagen_ventas, imagen_visa_mc, imagen_clave, pos_visa_mc, pos_clave 
-        FROM tblcierresz 
+        SELECT 
+            c.row_id, c.imagen_header, c.imagen_ventas, c.imagen_visa_mc, c.imagen_clave, 
+            c.pos_visa_mc, c.pos_clave,
+            c.invoice_number, c.invoice_date, s.etiqueta_suc
+        FROM tblcierresz c
+        LEFT JOIN tblsucursales s ON c.branch_id = s.branch_id
         WHERE (
-            (imagen_header IS NOT NULL AND imagen_header != '') OR 
-            (imagen_ventas IS NOT NULL AND imagen_ventas != '') OR 
-            (imagen_visa_mc IS NOT NULL AND imagen_visa_mc != '') OR 
-            (imagen_clave IS NOT NULL AND imagen_clave != '')
+            (c.imagen_header IS NOT NULL AND c.imagen_header != '') OR 
+            (c.imagen_ventas IS NOT NULL AND c.imagen_ventas != '') OR 
+            (c.imagen_visa_mc IS NOT NULL AND c.imagen_visa_mc != '') OR 
+            (c.imagen_clave IS NOT NULL AND c.imagen_clave != '')
         )
-        AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
-        AND (fecha_modifica >= NOW() - INTERVAL '2 days')
+        AND (c.ocr_raw_text IS NULL OR c.ocr_raw_text = '')
+        AND (c.fecha_modifica >= NOW() - INTERVAL '2 days')
         LIMIT {limit};
         """
         pending = self.db.fetch_all(query)
@@ -142,9 +177,11 @@ class IntelligentWorker:
             row_id = record[0]
             # Columnas 1 a 4 son las rutas de las imágenes
             image_paths_in_db = record[1:5]
-            # sucursal = record[5] -- Removido etiqueta_sucursal porque no existe en esta tabla
             manual_visa = record[5] or 0.0
             manual_clave = record[6] or 0.0
+            inv_number = record[7] or "N/A"
+            inv_date = record[8] or "N/A"
+            suc_name = record[9] or "Desconocida"
             
             local_paths = []
             print(f"Procesando cierre {row_id}")
@@ -164,8 +201,12 @@ class IntelligentWorker:
                 )
                 continue
             
-            # Llamamos a la AI con la lista de imágenes
-            extracted_data = self.ai.process_cierre(local_paths)
+            # Llamamos a la AI con la lista de imágenes y el contexto manual
+            extracted_data = self.ai.process_cierre(
+                local_paths,
+                expected_visa_mc=float(manual_visa),
+                expected_clave=float(manual_clave)
+            )
             
             if "error" in extracted_data:
                 error_msg = str(extracted_data['error']).lower()
@@ -191,15 +232,21 @@ class IntelligentWorker:
             audit_msg = []
             has_diff = False
             # Comparar Visa/MC
-            if abs(float(manual_visa) - ai_visa) < 0.01:
-                audit_msg.append("✅ Visa/MC OK")
+            if self._is_ocr_confusion(manual_visa, ai_visa):
+                if abs(float(manual_visa) - ai_visa) >= 0.01:
+                    audit_msg.append("✅ Visa/MC OK (Tolerancia OCR aplicada)")
+                else:
+                    audit_msg.append("✅ Visa/MC OK")
             else:
                 audit_msg.append(f"❌ Visa/MC Diff: AppSheet {manual_visa} vs Foto {ai_visa}")
                 has_diff = True
             
             # Comparar Clave
-            if abs(float(manual_clave) - ai_clave) < 0.01:
-                audit_msg.append("✅ Clave OK")
+            if self._is_ocr_confusion(manual_clave, ai_clave):
+                if abs(float(manual_clave) - ai_clave) >= 0.01:
+                    audit_msg.append("✅ Clave OK (Tolerancia OCR aplicada)")
+                else:
+                    audit_msg.append("✅ Clave OK")
             else:
                 audit_msg.append(f"❌ Clave Diff: AppSheet {manual_clave} vs Foto {ai_clave}")
                 has_diff = True
@@ -214,9 +261,14 @@ class IntelligentWorker:
 
             # Si hay diferencia, enviar alerta por Telegram
             if has_diff:
-                # El record[1] es imagen_header, necesitamos el invoice_number si lo queremos en el alerta
-                # Pero no lo pedimos en el SELECT. Vamos a usar row_id o mejorar el SELECT.
-                alert_text = f"🚨 *Alerta de Diferencia* 🚨\n\n📌 *ID*: {row_id}\n🔍 *Auditoría*: {final_comment}"
+                alert_text = (
+                    f"🚨 *Alerta de Diferencia en Cierre Z* 🚨\n\n"
+                    f"🏢 *Sucursal*: {suc_name}\n"
+                    f"📅 *Fecha*: {inv_date}\n"
+                    f"🧾 *Cierre #*: {inv_number}\n"
+                    f"📌 *Row ID*: {row_id}\n\n"
+                    f"🔍 *Auditoría*: {final_comment}"
+                )
                 self.send_telegram_alert(alert_text)
 
             # Actualizar Postgres (INCLUYENDO NUEVAS COLUMNAS DE AUDITORÍA)
@@ -257,11 +309,12 @@ class IntelligentWorker:
         Busca registros en tbl_depositos que tengan imagen pero no auditoría.
         """
         query = f"""
-        SELECT deposito_id, adjunto, monto, branch_id
-        FROM tbl_depositos 
-        WHERE (adjunto IS NOT NULL AND adjunto != '')
-        AND (ocr_raw_text IS NULL OR ocr_raw_text = '')
-        AND (fecha_modifica >= NOW() - INTERVAL '2 days')
+        SELECT d.deposito_id, d.adjunto, d.monto, d.branch_id, s.etiqueta_suc
+        FROM tbl_depositos d
+        LEFT JOIN tblsucursales s ON d.branch_id = s.branch_id
+        WHERE (d.adjunto IS NOT NULL AND d.adjunto != '')
+        AND (d.ocr_raw_text IS NULL OR d.ocr_raw_text = '')
+        AND (d.fecha_modifica >= NOW() - INTERVAL '2 days')
         LIMIT {limit};
         """
         # Nota: sucursal fue eliminada de la tabla física, usamos branch_id para relaciones.
@@ -276,7 +329,8 @@ class IntelligentWorker:
             dep_id = record[0]
             adjunto_path = record[1]
             monto_manual = record[2] or 0.0
-            branch_id = record[3] # Antes era 4 cuando existía sucursal
+            branch_id = record[3]
+            suc_name = record[4] or "Desconocida"
             
             print(f"Procesando depósito {dep_id}")
             
@@ -291,7 +345,10 @@ class IntelligentWorker:
                 )
                 continue
                 
-            extracted_data = self.ai.process_deposito(local_path)
+            extracted_data = self.ai.process_deposito(
+                local_path,
+                expected_monto=float(monto_manual)
+            )
             
             if "error" in extracted_data:
                 print(f"❌ Error IA en depósito: {extracted_data['error']}")
@@ -306,14 +363,22 @@ class IntelligentWorker:
             ai_fecha = extracted_data.get('fecha') or "No detectada"
             
             diff = abs(float(monto_manual) - ai_monto)
-            is_ok = diff < 0.01
+            is_ok = self._is_ocr_confusion(monto_manual, ai_monto)
             
             if is_ok:
-                audit_msg = f"✅ Depósito OK (Foto: ${ai_monto}, Fecha: {ai_fecha})"
+                if diff >= 0.01:
+                    audit_msg = f"✅ Depósito OK - Tolerancia OCR (Foto: ${ai_monto}, Fecha: {ai_fecha})"
+                else:
+                    audit_msg = f"✅ Depósito OK (Foto: ${ai_monto}, Fecha: {ai_fecha})"
             else:
                 audit_msg = f"❌ Diferencia Depósito: AppSheet ${monto_manual} vs Foto ${ai_monto} | Fecha Foto: {ai_fecha}"
                 # Alerta Telegram
-                alert_text = f"🏦 *Alerta de Depósito* 🏦\n\n📌 *ID*: {dep_id}\n🔍 *Auditoría*: {audit_msg}"
+                alert_text = (
+                    f"🏦 *Alerta de Diferencia en Depósito* 🏦\n\n"
+                    f"🏢 *Sucursal*: {suc_name}\n"
+                    f"📌 *Depósito ID*: {dep_id}\n\n"
+                    f"🔍 *Auditoría*: {audit_msg}"
+                )
                 self.send_telegram_alert(alert_text)
                 
             # Actualizar DB
