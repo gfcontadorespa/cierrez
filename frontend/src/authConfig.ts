@@ -3,7 +3,7 @@ import type { Configuration } from "@azure/msal-browser";
 
 export const msalConfig: Configuration = {
     auth: {
-        clientId: "8d30c3b5-00b4-4b8a-95f9-df1e9f878c7c",
+        clientId: import.meta.env.VITE_AUTH_MICROSOFT_ENTRA_ID_ID || "8d30c3b5-00b4-4b8a-95f9-df1e9f878c7c",
         authority: "https://login.microsoftonline.com/common",
         redirectUri: window.location.origin, // Default redirect URI
     },
