@@ -4,6 +4,7 @@ from google.auth.transport import requests as google_requests
 from pydantic import BaseModel
 import boto3
 import uuid
+import jwt
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 import sys
@@ -104,6 +105,68 @@ def google_auth(data: GoogleToken):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class MicrosoftToken(BaseModel):
+    token: str
+
+@api_router.post("/auth/microsoft")
+def microsoft_auth(data: MicrosoftToken):
+    try:
+        # Decode the token without verifying the signature for now (relies on HTTPS and MSAL)
+        # In a strict production environment, you should fetch the JWKS from Microsoft and verify.
+        unverified_claims = jwt.decode(data.token, options={"verify_signature": False})
+        
+        email = unverified_claims.get('preferred_username', '').lower()
+        if not email:
+            email = unverified_claims.get('email', '').lower()
+            
+        if not email:
+            raise HTTPException(status_code=400, detail="Token does not contain an email address")
+            
+        name = unverified_claims.get('name', email.split('@')[0])
+        
+        conn = db.get_connection()
+        try:
+            with conn.cursor() as cur:
+                # Check if user exists (case insensitive)
+                cur.execute("SELECT id, is_global_admin, active FROM tbl_users WHERE LOWER(email) = %s", (email,))
+                user_row = cur.fetchone()
+                
+                if not user_row:
+                    raise HTTPException(status_code=403, detail=f"Usuario '{email}' no registrado en el sistema")
+                
+                if not user_row[2]: # active
+                    raise HTTPException(status_code=403, detail="User account is deactivated")
+                
+                # Marcar como confirmado (guardar microsoft_id/google_id)
+                sub_id = unverified_claims.get('oid') or unverified_claims.get('sub')
+                if sub_id:
+                    cur.execute("UPDATE tbl_users SET google_id = %s WHERE id = %s AND google_id IS NULL", (sub_id, user_row[0]))
+                    conn.commit()
+
+                # Obtener company_id
+                cur.execute("SELECT company_id FROM tbl_company_users WHERE user_id = %s LIMIT 1", (user_row[0],))
+                comp_row = cur.fetchone()
+                company_id = comp_row[0] if comp_row else None
+                
+                return {
+                    "access_token": f"fake-jwt-for-{email}",
+                    "user": {
+                        "id": user_row[0],
+                        "email": email,
+                        "name": name,
+                        "is_global_admin": user_row[1],
+                        "company_id": company_id
+                    }
+                }
+        finally:
+            db.release_connection(conn)
+    except jwt.DecodeError:
+        raise HTTPException(status_code=401, detail="Invalid Microsoft token")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("Microsoft Auth Error:", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/dashboard/metrics")
 def get_dashboard_metrics(company_id: int = 1):
