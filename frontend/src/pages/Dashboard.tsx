@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, AlertTriangle, Store, DollarSign } from 'lucide-react';
 import api from '../services/api';
 
@@ -91,7 +91,7 @@ const Dashboard: React.FC = () => {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="date" tickFormatter={(val) => val.split('-').slice(1).join('/')} />
                 <YAxis />
-                <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, 'Ventas']} />
+                <Tooltip formatter={(value: any) => [`$${Number(value).toFixed(2)}`, 'Ventas']} />
                 <Line type="monotone" dataKey="sales" stroke="#2563eb" strokeWidth={3} dot={{r: 4}} activeDot={{r: 8}} />
               </LineChart>
             </ResponsiveContainer>
@@ -114,11 +114,11 @@ const Dashboard: React.FC = () => {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {data.payment_distribution.map((entry: any, index: number) => (
+                    {data.payment_distribution.map((_entry: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, 'Monto']} />
+                  <Tooltip formatter={(value: any) => [`$${Number(value).toFixed(2)}`, 'Monto']} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
