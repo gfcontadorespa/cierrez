@@ -92,6 +92,90 @@ def google_auth(data: GoogleToken):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@api_router.get("/dashboard/metrics")
+def get_dashboard_metrics(company_id: int = 1):
+    try:
+        conn = db.get_connection()
+        try:
+            with conn.cursor() as cur:
+                from datetime import datetime
+                today = datetime.now().strftime('%Y-%m-%d')
+                
+                # 1. Total Sales Today
+                cur.execute("SELECT COALESCE(SUM(total_receipt), 0), COALESCE(SUM(difference_amount), 0) FROM tbl_cierres_z_master WHERE company_id = %s AND date_closed = %s", (company_id, today))
+                today_stats = cur.fetchone()
+                total_sales_today = float(today_stats[0])
+                total_difference_today = float(today_stats[1])
+                
+                # 2. Closure Rate (Branches closed today vs Total active branches)
+                cur.execute("SELECT COUNT(DISTINCT branch_id) FROM tbl_cierres_z_master WHERE company_id = %s AND date_closed = %s", (company_id, today))
+                closed_branches = cur.fetchone()[0]
+                
+                cur.execute("SELECT COUNT(*) FROM tbl_branches WHERE company_id = %s AND active = TRUE", (company_id,))
+                total_branches = cur.fetchone()[0]
+                
+                # 3. Weekly Trend (Last 7 days)
+                cur.execute("""
+                    SELECT date_closed, SUM(total_receipt) 
+                    FROM tbl_cierres_z_master 
+                    WHERE company_id = %s AND date_closed >= current_date - interval '7 days'
+                    GROUP BY date_closed 
+                    ORDER BY date_closed ASC
+                """, (company_id,))
+                weekly_data = [{"date": str(row[0]), "sales": float(row[1])} for row in cur.fetchall()]
+                
+                # 4. Payment Methods Distribution (Today)
+                cur.execute("""
+                    SELECT pm.name, SUM(d.amount)
+                    FROM tbl_cierre_payments_detail d
+                    JOIN tbl_cierres_z_master m ON d.cierre_id = m.id
+                    JOIN tbl_payment_methods pm ON d.payment_method_id = pm.id
+                    WHERE m.company_id = %s AND m.date_closed = %s
+                    GROUP BY pm.name
+                """, (company_id, today))
+                payment_distribution = [{"name": row[0], "value": float(row[1])} for row in cur.fetchall()]
+                
+                # 5. Recent Alerts (Unbalanced or AI Errors)
+                cur.execute("""
+                    SELECT id, z_number, branch_id, difference_amount, ai_comments, status
+                    FROM tbl_cierres_z_master
+                    WHERE company_id = %s AND (status != 'balanced' OR ai_comments IS NOT NULL)
+                    ORDER BY id DESC LIMIT 5
+                """, (company_id,))
+                
+                # Fetch branch names for alerts
+                cur.execute("SELECT id, name FROM tbl_branches WHERE company_id = %s", (company_id,))
+                branch_dict = {row[0]: row[1] for row in cur.fetchall()}
+                
+                alerts = []
+                for row in cur.fetchall():
+                    alerts.append({
+                        "id": row[0],
+                        "z_number": row[1],
+                        "branch_name": branch_dict.get(row[2], "Desconocida"),
+                        "difference_amount": float(row[3]) if row[3] else 0.0,
+                        "ai_comments": row[4],
+                        "status": row[5]
+                    })
+                
+                return {
+                    "kpis": {
+                        "total_sales_today": total_sales_today,
+                        "total_difference_today": total_difference_today,
+                        "closed_branches": closed_branches,
+                        "total_branches": total_branches
+                    },
+                    "weekly_trend": weekly_data,
+                    "payment_distribution": payment_distribution,
+                    "alerts": alerts
+                }
+        finally:
+            db.release_connection(conn)
+    except Exception as e:
+        print("Dashboard Error:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.get("/companies")
 def get_companies():
     try:
