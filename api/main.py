@@ -56,18 +56,18 @@ def google_auth(data: GoogleToken):
             
         idinfo = id_token.verify_oauth2_token(data.token, google_requests.Request(), client_id)
         
-        email = idinfo['email']
+        email = idinfo['email'].lower()
         name = idinfo.get('name', email.split('@')[0])
         
         conn = db.get_connection()
         try:
             with conn.cursor() as cur:
-                # Check if user exists
-                cur.execute("SELECT id, is_global_admin, active FROM tbl_users WHERE email = %s", (email,))
+                # Check if user exists (case insensitive)
+                cur.execute("SELECT id, is_global_admin, active FROM tbl_users WHERE LOWER(email) = %s", (email,))
                 user_row = cur.fetchone()
                 
                 if not user_row:
-                    raise HTTPException(status_code=403, detail="User not registered in the system")
+                    raise HTTPException(status_code=403, detail=f"Usuario '{email}' no registrado en el sistema")
                 
                 if not user_row[2]: # active
                     raise HTTPException(status_code=403, detail="User account is deactivated")
