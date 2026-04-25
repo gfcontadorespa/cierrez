@@ -67,7 +67,7 @@ def google_auth(data: GoogleToken):
                 user_row = cur.fetchone()
                 
                 if not user_row:
-                    raise HTTPException(status_code=403, detail=f"Usuario '{email}' no registrado en el sistema")
+                    raise HTTPException(status_code=403, detail=f"Usuario '{email}' no registrado en el sistema (DB: {os.getenv('DB_HOST')})")
                 
                 if not user_row[2]: # active
                     raise HTTPException(status_code=403, detail="User account is deactivated")
