@@ -15,6 +15,14 @@ const Companies: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCompany, setNewCompany] = useState({ name: '', ruc: '' });
 
+  // User Management State
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
+  const [companyUsers, setCompanyUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState('admin');
+
   useEffect(() => {
     fetchCompanies();
   }, []);
@@ -41,6 +49,39 @@ const Companies: React.FC = () => {
     } catch (error) {
       console.error('Error creating company:', error);
       alert('Hubo un error al crear la compañía');
+    }
+  };
+
+  const openUsersModal = async (company: Company) => {
+    setSelectedCompany(company);
+    setIsUsersModalOpen(true);
+    setLoadingUsers(true);
+    try {
+      const response = await api.get(`/companies/${company.id}/users`);
+      setCompanyUsers(response.data);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleInviteUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCompany) return;
+    try {
+      await api.post(`/companies/${selectedCompany.id}/users`, {
+        email: newUserEmail,
+        role: newUserRole,
+        branch_ids: []
+      });
+      // Refresh user list
+      openUsersModal(selectedCompany);
+      setNewUserEmail('');
+      alert('Invitación enviada exitosamente por correo.');
+    } catch (error: any) {
+      console.error('Error inviting user:', error);
+      alert('Error al invitar usuario: ' + (error.response?.data?.detail || error.message));
     }
   };
 
@@ -117,7 +158,8 @@ const Companies: React.FC = () => {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900">Editar</button>
+                    <button onClick={() => openUsersModal(company)} className="text-blue-600 hover:text-blue-900 mr-4">Usuarios</button>
+                    <button className="text-slate-600 hover:text-slate-900">Editar</button>
                   </td>
                 </tr>
               ))}
@@ -186,6 +228,95 @@ const Companies: React.FC = () => {
                   </div>
                 </form>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Users Management Modal */}
+      {isUsersModalOpen && selectedCompany && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-slate-500 bg-opacity-75 transition-opacity" onClick={() => setIsUsersModalOpen(false)}></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full sm:p-6">
+              
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg leading-6 font-bold text-slate-900">
+                  Usuarios de {selectedCompany.name}
+                </h3>
+                <button onClick={() => setIsUsersModalOpen(false)} className="text-slate-400 hover:text-slate-500">
+                  <XCircle className="h-6 w-6" />
+                </button>
+              </div>
+
+              {/* Form to invite user */}
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
+                <h4 className="text-sm font-medium text-slate-900 mb-3">Invitar Nuevo Usuario</h4>
+                <form onSubmit={handleInviteUser} className="flex gap-4 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-slate-700">Correo Electrónico</label>
+                    <input
+                      type="email"
+                      required
+                      className="mt-1 block w-full h-10 border border-slate-300 rounded-md shadow-sm px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                      placeholder="usuario@empresa.com"
+                    />
+                  </div>
+                  <div className="w-48">
+                    <label className="block text-xs font-medium text-slate-700">Rol</label>
+                    <select
+                      className="mt-1 block w-full h-10 border border-slate-300 rounded-md shadow-sm px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white"
+                      value={newUserRole}
+                      onChange={(e) => setNewUserRole(e.target.value)}
+                    >
+                      <option value="admin">Administrador (Tenant)</option>
+                      <option value="user">Usuario Básico</option>
+                    </select>
+                  </div>
+                  <button
+                    type="submit"
+                    className="h-10 inline-flex items-center px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    Enviar Invitación
+                  </button>
+                </form>
+              </div>
+
+              {/* User List */}
+              <div className="border border-slate-200 rounded-md overflow-hidden">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Nombre</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Correo</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Rol</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-slate-200">
+                    {loadingUsers ? (
+                      <tr><td colSpan={3} className="px-4 py-4 text-center text-sm text-slate-500">Cargando...</td></tr>
+                    ) : companyUsers.length === 0 ? (
+                      <tr><td colSpan={3} className="px-4 py-4 text-center text-sm text-slate-500">No hay usuarios asignados a esta compañía.</td></tr>
+                    ) : (
+                      companyUsers.map(user => (
+                        <tr key={user.id}>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-slate-900">{user.name}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500">{user.email}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                              {user.role}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
             </div>
           </div>
         </div>

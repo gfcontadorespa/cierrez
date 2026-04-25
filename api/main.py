@@ -290,6 +290,31 @@ def update_company(company_id: int, company: CompanyUpdate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.get("/companies/{company_id}/users")
+def get_company_users(company_id: int):
+    try:
+        query = """
+            SELECT u.id, u.email, u.name, u.active, cu.role, cu.created_at
+            FROM tbl_users u
+            JOIN tbl_company_users cu ON u.id = cu.user_id
+            WHERE cu.company_id = %s
+            ORDER BY u.name ASC;
+        """
+        users = db.fetch_all(query, (company_id,))
+        return [
+            {
+                "id": row[0],
+                "email": row[1],
+                "name": row[2],
+                "active": row[3],
+                "role": row[4],
+                "created_at": row[5]
+            }
+            for row in users
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.post("/companies/{company_id}/users")
 def add_user_to_company(company_id: int, user: CompanyUserCreate):
     try:
@@ -347,11 +372,11 @@ def add_user_to_company(company_id: int, user: CompanyUserCreate):
                             Has sido invitado para unirte a <strong>{company_name}</strong> con el rol de <strong>{user.role}</strong>.
                         </p>
                         <p style="color: #475569; font-size: 16px; line-height: 1.5;">
-                            Haz clic en el botón de abajo para configurar tu cuenta y contraseña:
+                            Haz clic en el botón de abajo para iniciar sesión directamente con tu cuenta de Google:
                         </p>
                         <div style="text-align: center; margin-top: 30px; margin-bottom: 20px;">
-                            <a href="http://localhost:5173/login" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                                Aceptar Invitación
+                            <a href="https://cierrez.gfcontadorespa.com" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                                Iniciar sesión con Google
                             </a>
                         </div>
                         <p style="color: #94a3b8; font-size: 12px; text-align: center;">
