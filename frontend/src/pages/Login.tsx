@@ -7,7 +7,7 @@ import api from '../services/api';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { instance } = useMsal();
+  const { instance, inProgress } = useMsal();
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     try {
@@ -29,6 +29,11 @@ const Login: React.FC = () => {
   };
 
   const handleMicrosoftLogin = async () => {
+    if (inProgress !== "none") {
+      console.log("Interacción de MSAL ya en curso. Ignorando clic.");
+      return;
+    }
+    
     try {
       const loginResponse = await instance.loginPopup(loginRequest);
       
@@ -83,7 +88,8 @@ const Login: React.FC = () => {
 
             <button
               onClick={handleMicrosoftLogin}
-              className="w-full max-w-[200px] flex items-center justify-center px-4 py-2 border border-slate-300 shadow-sm text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              disabled={inProgress !== "none"}
+              className={`w-full max-w-[200px] flex items-center justify-center px-4 py-2 border border-slate-300 shadow-sm text-sm font-medium rounded-md text-slate-700 bg-white transition-colors ${inProgress !== "none" ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'}`}
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
                 <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
@@ -91,7 +97,7 @@ const Login: React.FC = () => {
                 <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
                 <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
               </svg>
-              Continuar con Microsoft
+              {inProgress !== "none" ? 'Cargando...' : 'Continuar con Microsoft'}
             </button>
           </div>
         </div>
