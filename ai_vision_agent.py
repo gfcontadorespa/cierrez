@@ -15,13 +15,13 @@ class AIVisionAgent:
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode("utf-8")
 
-    def process_cierre(self, image_paths, expected_visa_mc=None, expected_clave=None):
+    def process_cierre(self, image_urls, expected_visa_mc=None, expected_clave=None):
         """
         Envía una o varias imágenes a OpenAI para extraer datos del Cierre Z.
-        :param image_paths: List of absolute paths to images.
+        :param image_urls: List of direct public URLs to the images (e.g. from Cloudflare R2).
         """
-        if isinstance(image_paths, str):
-            image_paths = [image_paths]
+        if isinstance(image_urls, str):
+            image_urls = [image_urls]
 
         context_prompt = ""
         if expected_visa_mc is not None or expected_clave is not None:
@@ -52,9 +52,15 @@ Responde ÚNICAMENTE con el objeto JSON puro. No incluyas ```json ni texto adici
 """}
         ]
 
-        for path in image_paths:
-            if os.path.exists(path):
-                base64_image = self._encode_image(path)
+        for url in image_urls:
+            if url and url.startswith("http"):
+                content_blocks.append({
+                    "type": "image_url",
+                    "image_url": {"url": url},
+                })
+            elif url and os.path.exists(url):
+                # Fallback for local testing
+                base64_image = self._encode_image(url)
                 content_blocks.append({
                     "type": "image_url",
                     "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
@@ -76,61 +82,7 @@ Responde ÚNICAMENTE con el objeto JSON puro. No incluyas ```json ni texto adici
             print(f"Error procesando imágenes con AI Vision: {e}")
             return {"error": str(e)}
 
-    def process_deposito(self, image_path, expected_monto=None):
-        """
-        Analiza una imagen de un volante de depósito bancario.
-        """
-        if not os.path.exists(image_path):
-            return {"error": "Archivo no encontrado"}
 
-        context_prompt = ""
-        if expected_monto is not None:
-            context_prompt = f"""
-Información de contexto proporcionada por el usuario:
-- Monto del depósito esperado: {expected_monto}
-
-INSTRUCCIÓN DE TOLERANCIA OCR:
-A veces el sello del banco o la impresión cortada hacen que la IA confunda 5 y 6, 3 y 8, o 1 y 7, o no pueda leer bien los centavos.
-Si el texto en la foto difiere del valor esperado SOLO por este tipo de errores de lectura óptica, asume que el volante corresponde al valor esperado y devuélvelo como resultante.
-"""
-
-        base64_image = self._encode_image(image_path)
-        content_blocks = [
-            {"type": "text", "text": f"""
-Analiza esta imagen de un volante de depósito bancario legítimo y extrae los datos en formato JSON puro. Solo hay UNA foto por depósito.
-{context_prompt}
-Campos requeridos:
-1. monto (Número: Busca el 'TOTAL PROCESADO' o 'EFECTIVO' impreso por la máquina, o el 'TOTAL US$' escrito a mano. ej: 130.58)
-2. fecha (Texto: Busca la fecha de depósito impresa. Formato YYYY-MM-DD. ej: '2026-01-16')
-
-Validaciones críticas:
-- Debe ser un volante de depósito bancario legítimo.
-- Prioriza siempre el monto impreso por la terminal bancaria o el que tenga el sello.
-- Si no parece un comprobante bancario legítimo, pon el monto en 0 y explica por qué en 'debug_info'.
-
-Responde ÚNICAMENTE con el objeto JSON puro.
-"""},
-            {
-                "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
-            }
-        ]
-
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": content_blocks}],
-                max_tokens=400,
-            )
-            
-            content = response.choices[0].message.content.strip()
-            if content.startswith("```json"):
-                content = content.replace("```json", "").replace("```", "").strip()
-            
-            return json.loads(content)
-        except Exception as e:
-            print(f"Error procesando depósito con AI Vision: {e}")
-            return {"error": str(e)}
 
 if __name__ == "__main__":
     # Test simple (necesita una imagen real para funcionar)
