@@ -306,9 +306,14 @@ const Companies: React.FC = () => {
                           <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-slate-900">{user.name}</td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500">{user.email}</td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mr-2">
                               {user.role}
                             </span>
+                            {!user.confirmed && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                                Pendiente
+                              </span>
+                            )}
                           </td>
                         </tr>
                       ))

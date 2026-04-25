@@ -71,6 +71,13 @@ def google_auth(data: GoogleToken):
                 
                 if not user_row[2]: # active
                     raise HTTPException(status_code=403, detail="User account is deactivated")
+                
+                # Marcar como confirmado (guardar google_id) si no lo tiene
+                google_sub = idinfo.get('sub')
+                if google_sub:
+                    cur.execute("UPDATE tbl_users SET google_id = %s WHERE id = %s AND google_id IS NULL", (google_sub, user_row[0]))
+                    conn.commit()
+
                 # Obtener company_id (si tiene una compañía asignada)
                 cur.execute("SELECT company_id FROM tbl_company_users WHERE user_id = %s LIMIT 1", (user_row[0],))
                 comp_row = cur.fetchone()
@@ -299,7 +306,7 @@ def update_company(company_id: int, company: CompanyUpdate):
 def get_company_users(company_id: int):
     try:
         query = """
-            SELECT u.id, u.email, u.name, u.active, cu.role, cu.created_at
+            SELECT u.id, u.email, u.name, u.active, cu.role, cu.created_at, u.google_id
             FROM tbl_users u
             JOIN tbl_company_users cu ON u.id = cu.user_id
             WHERE cu.company_id = %s
@@ -313,7 +320,8 @@ def get_company_users(company_id: int):
                 "name": row[2],
                 "active": row[3],
                 "role": row[4],
-                "created_at": row[5]
+                "created_at": row[5],
+                "confirmed": row[6] is not None
             }
             for row in users
         ]
