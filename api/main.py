@@ -417,6 +417,36 @@ def add_user_to_company(company_id: int, user: CompanyUserCreate):
         print("Backend Error:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.delete("/companies/{company_id}/users/{user_id}")
+def remove_user_from_company(company_id: int, user_id: int):
+    try:
+        conn = db.get_connection()
+        try:
+            with conn.cursor() as cur:
+                # 1. Eliminar la relación con la compañía
+                cur.execute("DELETE FROM tbl_company_users WHERE company_id = %s AND user_id = %s", (company_id, user_id))
+                
+                # 2. Verificar si el usuario quedó huérfano (sin compañías) y si está "Pendiente" (google_id IS NULL)
+                cur.execute("SELECT google_id FROM tbl_users WHERE id = %s", (user_id,))
+                user_row = cur.fetchone()
+                
+                if user_row:
+                    google_id = user_row[0]
+                    cur.execute("SELECT COUNT(*) FROM tbl_company_users WHERE user_id = %s", (user_id,))
+                    company_count = cur.fetchone()[0]
+                    
+                    if company_count == 0 and google_id is None:
+                        # Limpiar usuario fantasma/pendiente
+                        cur.execute("DELETE FROM tbl_users WHERE id = %s", (user_id,))
+                
+                conn.commit()
+                return {"status": "success", "detail": "User removed successfully"}
+        finally:
+            db.release_connection(conn)
+    except Exception as e:
+        print("Backend Error:", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.get("/bank_accounts")
 def get_bank_accounts(company_id: int | None = None):
     try:

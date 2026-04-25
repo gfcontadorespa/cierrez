@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Shield, XCircle } from 'lucide-react';
+import { Users, UserPlus, Shield, XCircle, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 
 const TeamUsers: React.FC = () => {
@@ -58,6 +58,20 @@ const TeamUsers: React.FC = () => {
     }
   };
 
+  const handleRevokeUser = async (userId: number, userName: string) => {
+    if (!companyId) return;
+    if (!window.confirm(`¿Estás seguro de que deseas revocar el acceso a ${userName}?`)) {
+      return;
+    }
+    try {
+      await api.delete(`/companies/${companyId}/users/${userId}`);
+      fetchTeamUsers(companyId);
+    } catch (error: any) {
+      console.error('Error revoking user:', error);
+      alert('Error al revocar usuario: ' + (error.response?.data?.detail || error.message));
+    }
+  };
+
   if (loading) {
     return <div className="p-8 text-center text-slate-500">Cargando tu equipo...</div>;
   }
@@ -113,6 +127,9 @@ const TeamUsers: React.FC = () => {
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                 Estado
               </th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                Acciones
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
@@ -140,11 +157,20 @@ const TeamUsers: React.FC = () => {
                     </span>
                   )}
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <button 
+                    onClick={() => handleRevokeUser(user.id, user.name)}
+                    className="text-red-500 hover:text-red-700 transition-colors"
+                    title="Revocar acceso"
+                  >
+                    <Trash2 className="h-5 w-5 inline" />
+                  </button>
+                </td>
               </tr>
             ))}
             {teamUsers.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
+                <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
                   No hay usuarios registrados en tu equipo.
                 </td>
               </tr>

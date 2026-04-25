@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Building2, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Building2, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 
 interface Company {
@@ -82,6 +82,20 @@ const Companies: React.FC = () => {
     } catch (error: any) {
       console.error('Error inviting user:', error);
       alert('Error al invitar usuario: ' + (error.response?.data?.detail || error.message));
+    }
+  };
+
+  const handleRevokeUser = async (userId: number, userName: string) => {
+    if (!selectedCompany) return;
+    if (!window.confirm(`¿Estás seguro de que deseas revocar el acceso a ${userName}?`)) {
+      return;
+    }
+    try {
+      await api.delete(`/companies/${selectedCompany.id}/users/${userId}`);
+      openUsersModal(selectedCompany);
+    } catch (error: any) {
+      console.error('Error revoking user:', error);
+      alert('Error al revocar usuario: ' + (error.response?.data?.detail || error.message));
     }
   };
 
@@ -293,13 +307,14 @@ const Companies: React.FC = () => {
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Nombre</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Correo</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase">Rol</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-200">
                     {loadingUsers ? (
                       <tr><td colSpan={3} className="px-4 py-4 text-center text-sm text-slate-500">Cargando...</td></tr>
                     ) : companyUsers.length === 0 ? (
-                      <tr><td colSpan={3} className="px-4 py-4 text-center text-sm text-slate-500">No hay usuarios asignados a esta compañía.</td></tr>
+                      <tr><td colSpan={4} className="px-4 py-4 text-center text-sm text-slate-500">No hay usuarios asignados a esta compañía.</td></tr>
                     ) : (
                       companyUsers.map(user => (
                         <tr key={user.id}>
@@ -314,6 +329,15 @@ const Companies: React.FC = () => {
                                 Pendiente
                               </span>
                             )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                            <button 
+                              onClick={() => handleRevokeUser(user.id, user.name)}
+                              className="text-red-500 hover:text-red-700 transition-colors"
+                              title="Revocar acceso"
+                            >
+                              <Trash2 className="h-5 w-5 inline" />
+                            </button>
                           </td>
                         </tr>
                       ))
