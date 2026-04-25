@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Save, Plus, Trash2, Calculator, UploadCloud, Image as ImageIcon, X } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, Calculator, UploadCloud, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 

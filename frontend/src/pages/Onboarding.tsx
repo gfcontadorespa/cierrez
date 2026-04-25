@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building2, Store, Landmark, CreditCard, Users, Hash, BrainCircuit, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
 import api from '../services/api';
