@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi import FastAPI, HTTPException, File, UploadFile, APIRouter
 from pydantic import BaseModel
 import boto3
 import uuid
@@ -33,11 +33,14 @@ app.add_middleware(
 
 db = PostgresManager()
 
-@app.get("/")
+api_router = APIRouter(prefix="/api")
+
+
+@api_router.get("/")
 def read_root():
     return {"message": "API Validador Cierres Z funcionando correctamente"}
 
-@app.get("/companies")
+@api_router.get("/companies")
 def get_companies():
     try:
         companies = db.fetch_all("SELECT id, name, ruc, active FROM tbl_companies ORDER BY id DESC;")
@@ -101,7 +104,7 @@ class CierreCreate(BaseModel):
     deposit_receipt_url: str | None = None
     payments: list[CierrePayment]
 
-@app.post("/companies")
+@api_router.post("/companies")
 def create_company(company: CompanyCreate):
     try:
         query = "INSERT INTO tbl_companies (name, ruc, z_sequence_type, z_current_sequence, use_ai_validation) VALUES (%s, %s, 'manual', 0, FALSE) RETURNING id;"
@@ -117,7 +120,7 @@ def create_company(company: CompanyCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/companies/{company_id}")
+@api_router.put("/companies/{company_id}")
 def update_company(company_id: int, company: CompanyUpdate):
     try:
         fields = []
@@ -151,7 +154,7 @@ def update_company(company_id: int, company: CompanyUpdate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/companies/{company_id}/users")
+@api_router.post("/companies/{company_id}/users")
 def add_user_to_company(company_id: int, user: CompanyUserCreate):
     try:
         conn = db.get_connection()
@@ -240,7 +243,7 @@ def add_user_to_company(company_id: int, user: CompanyUserCreate):
         print("Backend Error:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/bank_accounts")
+@api_router.get("/bank_accounts")
 def get_bank_accounts(company_id: int | None = None):
     try:
         if company_id:
@@ -255,7 +258,7 @@ def get_bank_accounts(company_id: int | None = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/bank_accounts")
+@api_router.post("/bank_accounts")
 def create_bank_account(account: BankAccountCreate):
     try:
         query = "INSERT INTO tbl_bank_accounts (company_id, name, account_number, accounting_code) VALUES (%s, %s, %s, %s) RETURNING id;"
@@ -271,7 +274,7 @@ def create_bank_account(account: BankAccountCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/payment_methods")
+@api_router.get("/payment_methods")
 def get_payment_methods(company_id: int | None = None):
     try:
         # Hacemos un JOIN con tbl_bank_accounts para devolver también el nombre del banco y su cuenta contable
@@ -299,7 +302,7 @@ def get_payment_methods(company_id: int | None = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/payment_methods")
+@api_router.post("/payment_methods")
 def create_payment_method(method: PaymentMethodCreate):
     try:
         query = "INSERT INTO tbl_payment_methods (company_id, name, bank_account_id) VALUES (%s, %s, %s) RETURNING id;"
@@ -318,7 +321,7 @@ def create_payment_method(method: PaymentMethodCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/users")
+@api_router.get("/users")
 def get_users():
     try:
         query = "SELECT id, email, name, is_global_admin, active FROM tbl_users ORDER BY id DESC;"
@@ -328,7 +331,7 @@ def get_users():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/users")
+@api_router.post("/users")
 def create_user(user: UserCreate):
     try:
         query = "INSERT INTO tbl_users (email, name, is_global_admin) VALUES (%s, %s, %s) RETURNING id;"
@@ -344,7 +347,7 @@ def create_user(user: UserCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/cierres")
+@api_router.get("/cierres")
 def get_cierres(company_id: int | None = None):
     try:
         base_query = """
@@ -370,7 +373,7 @@ def get_cierres(company_id: int | None = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/cierres")
+@api_router.post("/cierres")
 def create_cierre(cierre: CierreCreate):
     conn = db.get_connection()
     try:
@@ -423,7 +426,7 @@ def create_cierre(cierre: CierreCreate):
     finally:
         db.release_connection(conn)
 
-@app.get("/cierres/{cierre_id}")
+@api_router.get("/cierres/{cierre_id}")
 def get_cierre_details(cierre_id: int):
     try:
         query_master = """
@@ -461,7 +464,7 @@ def get_cierre_details(cierre_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/branches")
+@api_router.get("/branches")
 def get_branches(company_id: int | None = None):
     try:
         if company_id:
@@ -476,7 +479,7 @@ def get_branches(company_id: int | None = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/branches")
+@api_router.post("/branches")
 def create_branch(branch: BranchCreate):
     try:
         query = "INSERT INTO tbl_branches (company_id, name) VALUES (%s, %s) RETURNING id;"
@@ -494,7 +497,7 @@ def create_branch(branch: BranchCreate):
 
 load_dotenv()
 
-@app.post("/upload/receipt")
+@api_router.post("/upload/receipt")
 async def upload_receipt(file: UploadFile = File(...)):
     endpoint_url = os.environ.get("R2_ENDPOINT_URL")
     access_key = os.environ.get("R2_ACCESS_KEY_ID")
@@ -528,7 +531,7 @@ async def upload_receipt(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/jobs/daily-report")
+@api_router.post("/jobs/daily-report")
 def run_daily_report(target_date: str | None = None):
     if not target_date:
         target_date = datetime.now().strftime('%Y-%m-%d')
@@ -660,3 +663,28 @@ def run_daily_report(target_date: str | None = None):
     finally:
         db.release_connection(conn)
 
+
+app.include_router(api_router)
+
+# Import StaticFiles and FileResponse here if not already imported
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+# Mount the static files for the React app
+frontend_dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'dist')
+if os.path.exists(frontend_dist):
+    app.mount('/assets', StaticFiles(directory=os.path.join(frontend_dist, 'assets')), name='assets')
+    
+    # Optional: Serve other static files like vite.svg, favicon.svg if they exist
+    for file in os.listdir(frontend_dist):
+        if file.endswith('.svg') or file.endswith('.png') or file.endswith('.ico'):
+            @app.get(f'/{file}')
+            def get_static_file(file=file):
+                return FileResponse(os.path.join(frontend_dist, file))
+    
+    # Catch-all route to serve index.html for React Router SPA
+    @app.get('/{catchall:path}')
+    def serve_react_app(catchall: str):
+        return FileResponse(os.path.join(frontend_dist, 'index.html'))
+else:
+    print('WARNING: frontend/dist directory not found. React app will not be served.')
