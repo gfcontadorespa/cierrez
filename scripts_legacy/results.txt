@@ -1,0 +1,18 @@
+Connecting to DB...
+Pool de conexiones creado con éxito.
+Executing query...
+Fetching results...
+Query done.
+     Sucursal      Fecha Total DB Total Excel Diferencia
+           AH 2026-01-15        0       98.00     -98.00
+           AH 2026-01-16        0      144.50    -144.50
+ALTAPLAZA MIC 2026-01-20    65.89       65.86       0.03
+ALTAPLAZA MIC 2026-01-28    177.8      107.75      70.05
+ALTAPLAZA MIC 2026-01-29   107.75      177.80     -70.05
+ DAVID OUTLET 2026-01-11   150.56      150.51       0.05
+LOS ANDES MIC 2026-01-02        0      144.60    -144.60
+LOS ANDES MIC 2026-01-17   177.77       50.78     126.99
+LOS ANDES MIC 2026-01-27        0       54.50     -54.50
+METROMALL MIC 2026-01-21   234.12      114.58     119.54
+METROMALL MIC 2026-01-31   527.78      520.78       7.00
+ WESTLAND MIC 2026-01-18   334.28      189.78     144.50
