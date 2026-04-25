@@ -9,3 +9,7 @@ fastapi
 uvicorn
 python-multipart
 openpyxl
+google-auth
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
