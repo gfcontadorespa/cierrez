@@ -1,4 +1,6 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile, APIRouter
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 from pydantic import BaseModel
 import boto3
 import uuid
@@ -39,6 +41,56 @@ api_router = APIRouter(prefix="/api")
 @api_router.get("/")
 def read_root():
     return {"message": "API Validador Cierres Z funcionando correctamente"}
+
+
+class GoogleToken(BaseModel):
+    token: str
+
+@api_router.post("/auth/google")
+def google_auth(data: GoogleToken):
+    try:
+        # Validate the token with Google
+        client_id = os.getenv("GOOGLE_CLIENT_ID")
+        if not client_id:
+            raise HTTPException(status_code=500, detail="Google Client ID not configured")
+            
+        idinfo = id_token.verify_oauth2_token(data.token, google_requests.Request(), client_id)
+        
+        email = idinfo['email']
+        name = idinfo.get('name', email.split('@')[0])
+        
+        conn = db.get_connection()
+        try:
+            with conn.cursor() as cur:
+                # Check if user exists
+                cur.execute("SELECT id, is_global_admin, active FROM tbl_users WHERE email = %s", (email,))
+                user_row = cur.fetchone()
+                
+                if not user_row:
+                    raise HTTPException(status_code=403, detail="User not registered in the system")
+                
+                if not user_row[2]: # active
+                    raise HTTPException(status_code=403, detail="User account is deactivated")
+                    
+                # Return session info (In production, generate a JWT here)
+                return {
+                    "access_token": f"fake-jwt-for-{email}",
+                    "user": {
+                        "id": user_row[0],
+                        "email": email,
+                        "name": name,
+                        "is_global_admin": user_row[1]
+                    }
+                }
+        finally:
+            db.release_connection(conn)
+    except ValueError:
+        # Invalid token
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/companies")
 def get_companies():
