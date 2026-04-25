@@ -12,6 +12,7 @@ import CierreZForm from './pages/CierreZForm';
 import CierreZDetails from './pages/CierreZDetails';
 import Branches from './pages/admin/Branches';
 import Onboarding from './pages/Onboarding';
+import TeamUsers from './pages/tenant/TeamUsers';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
             <Route path="/settings/payment-methods" element={<PaymentMethods />} />
             <Route path="/settings/bank-accounts" element={<BankAccounts />} />
             <Route path="/settings/branches" element={<Branches />} />
+            <Route path="/settings/team" element={<TeamUsers />} />
             
             {/* Global Admin */}
             <Route path="/admin/companies" element={<Companies />} />

@@ -12,6 +12,7 @@ const Layout: React.FC = () => {
   ];
 
   const companySettingsNavigation = [
+    { name: 'Mi Equipo', href: '/settings/team', icon: Users },
     { name: 'Cuentas Bancarias', href: '/settings/bank-accounts', icon: Landmark },
     { name: 'Formas de Pago', href: '/settings/payment-methods', icon: Wallet },
     { name: 'Sucursales', href: '/settings/branches', icon: Store },

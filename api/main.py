@@ -71,7 +71,11 @@ def google_auth(data: GoogleToken):
                 
                 if not user_row[2]: # active
                     raise HTTPException(status_code=403, detail="User account is deactivated")
-                    
+                # Obtener company_id (si tiene una compañía asignada)
+                cur.execute("SELECT company_id FROM tbl_company_users WHERE user_id = %s LIMIT 1", (user_row[0],))
+                comp_row = cur.fetchone()
+                company_id = comp_row[0] if comp_row else None
+                
                 # Return session info (In production, generate a JWT here)
                 return {
                     "access_token": f"fake-jwt-for-{email}",
@@ -79,7 +83,8 @@ def google_auth(data: GoogleToken):
                         "id": user_row[0],
                         "email": email,
                         "name": name,
-                        "is_global_admin": user_row[1]
+                        "is_global_admin": user_row[1],
+                        "company_id": company_id
                     }
                 }
         finally:
