@@ -4,6 +4,7 @@ import { LayoutDashboard, Wallet, Receipt, LogOut, Building2, Users, Landmark, S
 
 const Layout: React.FC = () => {
   const location = useLocation();
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -90,35 +91,37 @@ const Layout: React.FC = () => {
           </div>
 
           {/* Sección Admin Global */}
-          <div className="mt-8">
-            <h3 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" id="admin-headline">
-              Administración Global
-            </h3>
-            <nav className="mt-2 px-2 space-y-1" aria-labelledby="admin-headline">
-              {adminNavigation.map((item) => {
-                const isActive = location.pathname.startsWith(item.href) && item.href !== '#';
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={classNames(
-                      isActive ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white',
-                      'group flex items-center px-2 py-2 text-sm font-medium rounded-md'
-                    )}
-                  >
-                    <item.icon
+          {user?.is_global_admin && (
+            <div className="mt-8">
+              <h3 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" id="admin-headline">
+                Administración Global
+              </h3>
+              <nav className="mt-2 px-2 space-y-1" aria-labelledby="admin-headline">
+                {adminNavigation.map((item) => {
+                  const isActive = location.pathname.startsWith(item.href) && item.href !== '#';
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
                       className={classNames(
-                        isActive ? 'text-white' : 'text-slate-400 group-hover:text-white',
-                        'mr-3 flex-shrink-0 h-6 w-6'
+                        isActive ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                        'group flex items-center px-2 py-2 text-sm font-medium rounded-md'
                       )}
-                      aria-hidden="true"
-                    />
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
+                    >
+                      <item.icon
+                        className={classNames(
+                          isActive ? 'text-white' : 'text-slate-400 group-hover:text-white',
+                          'mr-3 flex-shrink-0 h-6 w-6'
+                        )}
+                        aria-hidden="true"
+                      />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          )}
         </div>
         <div className="flex-shrink-0 flex border-t border-slate-800 p-4">
           <Link to="/" className="flex-shrink-0 group block w-full">
