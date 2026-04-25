@@ -18,9 +18,10 @@ const Login: React.FC = () => {
       localStorage.setItem('user', JSON.stringify(res.data.user));
       
       navigate('/dashboard');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al iniciar sesión:', error);
-      alert('Error al iniciar sesión o usuario no autorizado.');
+      const backendMessage = error.response?.data?.detail || error.message || 'Desconocido';
+      alert('Error al iniciar sesión: ' + backendMessage);
     }
   };
 
