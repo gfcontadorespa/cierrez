@@ -3,7 +3,9 @@ requests
 python-dotenv
 psycopg2-binary
 openai
-gspread
-google-api-python-client
-google-auth-oauthlib
-google-auth-httplib2
+boto3
+resend
+fastapi
+uvicorn
+python-multipart
+openpyxl
