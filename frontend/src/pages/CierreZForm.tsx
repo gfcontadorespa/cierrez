@@ -126,10 +126,14 @@ const CierreZForm: React.FC = () => {
     if (!file) return null;
     const formData = new FormData();
     formData.append('file', file);
-    const uploadRes = await api.post('/upload/receipt', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+    const baseUrl = import.meta.env.VITE_API_URL || '/api';
+    const uploadRes = await fetch(`${baseUrl}/upload/receipt`, {
+      method: 'POST',
+      body: formData
     });
-    return uploadRes.data.url;
+    if (!uploadRes.ok) throw new Error('Upload failed');
+    const data = await uploadRes.json();
+    return data.url;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

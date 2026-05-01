@@ -24,6 +24,7 @@ interface CierreDetails {
   pos_receipt_url: string | null;
   deposit_receipt_url: string | null;
   status: string;
+  workflow_status: string;
   payments: PaymentDetail[];
 }
 
@@ -31,6 +32,10 @@ const CierreZDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [cierre, setCierre] = useState<CierreDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isAdmin = user.is_global_admin || false; // Or check role from company_users if available
 
   useEffect(() => {
     const fetchCierre = async () => {
@@ -52,6 +57,24 @@ const CierreZDetails: React.FC = () => {
 
   const isBalanced = cierre.status === 'balanced';
 
+  const handleStatusChange = async (newStatus: string) => {
+    try {
+      setUpdating(true);
+      await api.put(`/cierres/${cierre.id}/status`, { workflow_status: newStatus });
+      setCierre({ ...cierre, workflow_status: newStatus });
+    } catch (error) {
+      console.error('Error changing status:', error);
+      alert('Hubo un error al cambiar el estado.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    const baseUrl = import.meta.env.VITE_API_URL || '/api';
+    window.open(`${baseUrl}/cierres/${cierre.id}/pdf`, '_blank');
+  };
+
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6 flex items-center justify-between">
@@ -63,17 +86,54 @@ const CierreZDetails: React.FC = () => {
             Detalle del Cierre <span className="text-slate-500 font-mono">{cierre.z_number}</span>
           </h2>
         </div>
-        <button
-          onClick={() => window.print()}
-          className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
-        >
-          <Printer className="mr-2 h-4 w-4 text-slate-500" /> Imprimir
-        </button>
+        <div className="flex space-x-2">
+          {cierre.workflow_status === 'draft' || cierre.workflow_status === 'rejected' ? (
+            <button
+              onClick={() => handleStatusChange('submitted')}
+              disabled={updating}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+            >
+              🚀 Enviar Reporte
+            </button>
+          ) : null}
+          
+          {isAdmin && cierre.workflow_status === 'submitted' ? (
+            <>
+              <button
+                onClick={() => handleStatusChange('approved')}
+                disabled={updating}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+              >
+                ✅ Aprobar
+              </button>
+              <button
+                onClick={() => handleStatusChange('rejected')}
+                disabled={updating}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
+              >
+                ❌ Devolver
+              </button>
+            </>
+          ) : null}
+
+          <button
+            onClick={handleDownloadPdf}
+            className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
+          >
+            📄 Descargar PDF
+          </button>
+          
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50"
+          >
+            <Printer className="mr-2 h-4 w-4 text-slate-500" /> Imprimir
+          </button>
+        </div>
       </div>
 
       <div className="bg-white shadow rounded-lg overflow-hidden border border-slate-200 print:shadow-none print:border-none">
         
-        {/* Header Ribbon */}
         <div className={`px-6 py-4 flex items-center justify-between ${isBalanced ? 'bg-green-50 border-b border-green-100' : 'bg-red-50 border-b border-red-100'}`}>
           <div className="flex items-center">
             {isBalanced ? (
@@ -85,7 +145,13 @@ const CierreZDetails: React.FC = () => {
               {isBalanced ? 'Cierre Cuadrado Perfectamente' : `Cierre Descuadrado (Diferencia: $${Math.abs(cierre.difference_amount).toFixed(2)})`}
             </span>
           </div>
-          <span className="text-sm font-medium text-slate-500">{cierre.date_closed}</span>
+          <div className="flex items-center space-x-4">
+            {cierre.workflow_status === 'approved' && <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold uppercase">Aprobado</span>}
+            {cierre.workflow_status === 'submitted' && <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold uppercase">Enviado</span>}
+            {cierre.workflow_status === 'rejected' && <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold uppercase">Devuelto</span>}
+            {cierre.workflow_status === 'draft' && <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold uppercase">Borrador</span>}
+            <span className="text-sm font-medium text-slate-500">{cierre.date_closed}</span>
+          </div>
         </div>
 
         <div className="p-0 sm:p-0 flex flex-col lg:flex-row">

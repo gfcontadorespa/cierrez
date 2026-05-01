@@ -11,6 +11,7 @@ interface Cierre {
   total_receipt: number;
   status: string;
   difference_amount: number;
+  workflow_status: string;
 }
 
 const CierresZ: React.FC = () => {
@@ -67,7 +68,8 @@ const CierresZ: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Fecha</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Total Ventas</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Total Cierre (Con Imp.)</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Estado</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Estado Flujo</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Cuadre</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
@@ -81,13 +83,17 @@ const CierresZ: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-600">${cierre.total_sales.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-mono font-bold text-slate-800">${cierre.total_receipt.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {cierre.status === 'unbalanced' ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        Descuadrado (${Math.abs(cierre.difference_amount).toFixed(2)})
-                      </span>
-                    ) : cierre.status === 'balanced' ? (
+                    {cierre.workflow_status === 'approved' ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        <CheckCircle2 className="mr-1 h-3 w-3" /> Cuadrado
+                        Aprobado
+                      </span>
+                    ) : cierre.workflow_status === 'submitted' ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        Enviado
+                      </span>
+                    ) : cierre.workflow_status === 'rejected' ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        Devuelto
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -95,10 +101,21 @@ const CierresZ: React.FC = () => {
                       </span>
                     )}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {cierre.status === 'unbalanced' ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        Descuadrado (${Math.abs(cierre.difference_amount).toFixed(2)})
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <CheckCircle2 className="mr-1 h-3 w-3" /> Cuadrado
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
               {cierres.length === 0 && (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No hay cierres registrados. Haz clic en "Registrar Cierre Z" para empezar.</td></tr>
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No hay cierres registrados. Haz clic en "Registrar Cierre Z" para empezar.</td></tr>
               )}
             </tbody>
           </table>

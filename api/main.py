@@ -254,9 +254,9 @@ def get_dashboard_metrics(company_id: int = 1):
 @api_router.get("/companies")
 def get_companies():
     try:
-        companies = db.fetch_all("SELECT id, name, ruc, active FROM tbl_companies ORDER BY id DESC;")
+        companies = db.fetch_all("SELECT id, name, ruc, active, logo_url FROM tbl_companies ORDER BY id DESC;")
         # Convertir tuplas a diccionarios
-        result = [{"id": row[0], "name": row[1], "ruc": row[2], "active": row[3]} for row in companies]
+        result = [{"id": row[0], "name": row[1], "ruc": row[2], "active": row[3], "logo_url": row[4]} for row in companies]
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -269,6 +269,7 @@ class CompanyUpdate(BaseModel):
     z_sequence_type: str | None = None
     z_current_sequence: int | None = None
     use_ai_validation: bool | None = None
+    logo_url: str | None = None
 
 class CompanyUserCreate(BaseModel):
     email: str
@@ -345,6 +346,9 @@ def update_company(company_id: int, company: CompanyUpdate):
         if company.use_ai_validation is not None:
             fields.append("use_ai_validation = %s")
             values.append(company.use_ai_validation)
+        if company.logo_url is not None:
+            fields.append("logo_url = %s")
+            values.append(company.logo_url)
         
         if not fields:
             return {"status": "no updates"}
@@ -619,7 +623,7 @@ def get_cierres(company_id: int | None = None):
     try:
         base_query = """
             SELECT id, company_id, branch_id, z_number, date_closed, 
-                   taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, status, difference_amount, image_url, pos_receipt_url, deposit_receipt_url
+                   taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, status, difference_amount, image_url, pos_receipt_url, deposit_receipt_url, workflow_status
             FROM tbl_cierres_z_master
         """
         if company_id:
@@ -634,7 +638,8 @@ def get_cierres(company_id: int | None = None):
             "date_closed": str(row[4]), "taxable_sales": float(row[5]), "exempt_sales": float(row[6]),
             "tax_amount": float(row[7]), "total_sales": float(row[8]), "total_receipt": float(row[9]),
             "status": row[10], "difference_amount": float(row[11]) if row[11] is not None else 0.0,
-            "image_url": row[12], "pos_receipt_url": row[13], "deposit_receipt_url": row[14]
+            "image_url": row[12], "pos_receipt_url": row[13], "deposit_receipt_url": row[14],
+            "workflow_status": row[15]
         } for row in cierres]
         return result
     except Exception as e:
@@ -664,8 +669,8 @@ def create_cierre(cierre: CierreCreate):
             # 1. Insertar el Master
             query_master = """
                 INSERT INTO tbl_cierres_z_master 
-                (company_id, branch_id, z_number, date_closed, taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, difference_amount, status, image_url, pos_receipt_url, deposit_receipt_url) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
+                (company_id, branch_id, z_number, date_closed, taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, difference_amount, status, image_url, pos_receipt_url, deposit_receipt_url, workflow_status) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'draft') RETURNING id;
             """
             cur.execute(query_master, (
                 cierre.company_id, cierre.branch_id, cierre.z_number, cierre.date_closed,
@@ -698,7 +703,7 @@ def get_cierre_details(cierre_id: int):
     try:
         query_master = """
             SELECT id, company_id, branch_id, z_number, date_closed, 
-                   taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, status, difference_amount, image_url, pos_receipt_url, deposit_receipt_url
+                   taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, status, difference_amount, image_url, pos_receipt_url, deposit_receipt_url, workflow_status
             FROM tbl_cierres_z_master WHERE id = %s
         """
         master_row = db.fetch_one(query_master, (cierre_id,))
@@ -710,7 +715,8 @@ def get_cierre_details(cierre_id: int):
             "date_closed": str(master_row[4]), "taxable_sales": float(master_row[5]), "exempt_sales": float(master_row[6]),
             "tax_amount": float(master_row[7]), "total_sales": float(master_row[8]), "total_receipt": float(master_row[9]),
             "status": master_row[10], "difference_amount": float(master_row[11]) if master_row[11] is not None else 0.0,
-            "image_url": master_row[12], "pos_receipt_url": master_row[13], "deposit_receipt_url": master_row[14]
+            "image_url": master_row[12], "pos_receipt_url": master_row[13], "deposit_receipt_url": master_row[14],
+            "workflow_status": master_row[15]
         }
         
         query_details = """
@@ -930,6 +936,143 @@ def run_daily_report(target_date: str | None = None):
     finally:
         db.release_connection(conn)
 
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from pdf_generator import generate_cierre_pdf
+
+@api_router.post("/upload/logo")
+async def upload_logo(file: UploadFile = File(...)):
+    endpoint_url = os.environ.get("R2_ENDPOINT_URL")
+    access_key = os.environ.get("R2_ACCESS_KEY_ID")
+    secret_key = os.environ.get("R2_SECRET_ACCESS_KEY")
+    bucket_name = os.environ.get("R2_BUCKET_NAME")
+    public_url = os.environ.get("R2_PUBLIC_URL")
+
+    if not all([endpoint_url, access_key, secret_key, bucket_name, public_url]):
+        raise HTTPException(status_code=500, detail="Cloudflare R2 env vars missing")
+
+    try:
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=endpoint_url,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+        )
+
+        file_extension = file.filename.split(".")[-1]
+        unique_filename = f"logos/{uuid.uuid4()}.{file_extension}"
+
+        s3.upload_fileobj(
+            file.file, 
+            bucket_name, 
+            unique_filename,
+            ExtraArgs={'ContentType': file.content_type}
+        )
+        
+        final_url = f"{public_url.rstrip('/')}/{unique_filename}"
+        return {"url": final_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class CierreStatusUpdate(BaseModel):
+    workflow_status: str
+
+@api_router.put("/cierres/{cierre_id}/status")
+def update_cierre_status(cierre_id: int, update_data: CierreStatusUpdate):
+    valid_statuses = ['draft', 'submitted', 'approved', 'rejected']
+    if update_data.workflow_status not in valid_statuses:
+        raise HTTPException(status_code=400, detail="Invalid status")
+        
+    conn = db.get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE tbl_cierres_z_master SET workflow_status = %s WHERE id = %s RETURNING company_id", (update_data.workflow_status, cierre_id))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Cierre not found")
+            company_id = row[0]
+            conn.commit()
+            
+            # Send email if submitted
+            if update_data.workflow_status == 'submitted':
+                # Get admins
+                cur.execute("""
+                    SELECT u.email FROM tbl_users u
+                    JOIN tbl_company_users cu ON u.id = cu.user_id
+                    WHERE cu.company_id = %s AND cu.role = 'admin' AND u.active = TRUE
+                """, (company_id,))
+                admin_emails = [r[0] for r in cur.fetchall()]
+                
+                if admin_emails:
+                    cierre_details = get_cierre_details(cierre_id)
+                    cur.execute("SELECT name, logo_url FROM tbl_companies WHERE id = %s", (company_id,))
+                    comp_row = cur.fetchone()
+                    company_data = {"name": comp_row[0], "logo_url": comp_row[1]}
+                    
+                    cur.execute("SELECT name FROM tbl_branches WHERE id = %s", (cierre_details['branch_id'],))
+                    branch_data = {"name": cur.fetchone()[0]}
+                    
+                    pdf_bytes_io = generate_cierre_pdf(cierre_details, company_data, branch_data)
+                    pdf_b64 = base64.b64encode(pdf_bytes_io.getvalue()).decode('utf-8')
+                    
+                    html_content = f"""
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2>Nuevo Cierre Z Enviado</h2>
+                        <p>Se ha enviado un nuevo reporte de Cierre Z para la sucursal <strong>{branch_data['name']}</strong>.</p>
+                        <p>Por favor, revise el documento adjunto o ingrese a la plataforma para aprobarlo.</p>
+                    </div>
+                    """
+                    
+                    try:
+                        resend.Emails.send({
+                            "from": "cierrez@gfcontadorespa.com",
+                            "to": admin_emails,
+                            "subject": f"Cierre Z Enviado - {branch_data['name']} - {cierre_details['date_closed']}",
+                            "html": html_content,
+                            "attachments": [
+                                {"filename": f"Reporte_Cierre_Z_{cierre_details['z_number']}.pdf", "content": pdf_b64}
+                            ]
+                        })
+                    except Exception as e:
+                        print(f"Error enviando correo de workflow: {e}")
+            
+            return {"status": "success", "workflow_status": update_data.workflow_status}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.release_connection(conn)
+
+@api_router.get("/cierres/{cierre_id}/pdf")
+def download_cierre_pdf(cierre_id: int):
+    try:
+        cierre_details = get_cierre_details(cierre_id)
+        
+        conn = db.get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT name, logo_url FROM tbl_companies WHERE id = %s", (cierre_details['company_id'],))
+                comp_row = cur.fetchone()
+                company_data = {"name": comp_row[0], "logo_url": comp_row[1]}
+                
+                cur.execute("SELECT name FROM tbl_branches WHERE id = %s", (cierre_details['branch_id'],))
+                branch_data = {"name": cur.fetchone()[0]}
+        finally:
+            db.release_connection(conn)
+            
+        pdf_bytes_io = generate_cierre_pdf(cierre_details, company_data, branch_data)
+        
+        return StreamingResponse(
+            iter([pdf_bytes_io.getvalue()]), 
+            media_type="application/pdf", 
+            headers={"Content-Disposition": f"attachment; filename=Reporte_Cierre_Z_{cierre_details['z_number']}.pdf"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("PDF Generation Error:", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 app.include_router(api_router)
 

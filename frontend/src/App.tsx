@@ -13,6 +13,7 @@ import CierreZDetails from './pages/CierreZDetails';
 import Branches from './pages/admin/Branches';
 import Onboarding from './pages/Onboarding';
 import TeamUsers from './pages/tenant/TeamUsers';
+import CompanySettings from './pages/tenant/CompanySettings';
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
             <Route path="/cierres/:id" element={<CierreZDetails />} />
             
             {/* Configuración de Compañía (Admin Local) */}
+            <Route path="/settings/general" element={<CompanySettings />} />
             <Route path="/settings/payment-methods" element={<PaymentMethods />} />
             <Route path="/settings/bank-accounts" element={<BankAccounts />} />
             <Route path="/settings/branches" element={<Branches />} />

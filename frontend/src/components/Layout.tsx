@@ -12,6 +12,7 @@ const Layout: React.FC = () => {
   ];
 
   const companySettingsNavigation = [
+    { name: 'General / Logo', href: '/settings/general', icon: Building2 },
     { name: 'Mi Equipo', href: '/settings/team', icon: Users },
     { name: 'Cuentas Bancarias', href: '/settings/bank-accounts', icon: Landmark },
     { name: 'Formas de Pago', href: '/settings/payment-methods', icon: Wallet },
@@ -140,10 +141,11 @@ const Layout: React.FC = () => {
         <div className="sticky top-0 z-10 flex-shrink-0 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 lg:px-8">
             <div className="flex-1"></div>
             <div className="ml-4 flex items-center md:ml-6">
-              {/* Profile dropdown placeholder */}
               <div className="flex items-center">
-                <span className="text-sm font-medium text-slate-700 mr-2">Admin Company</span>
-                <div className="h-8 w-8 rounded-full bg-slate-300"></div>
+                <span className="text-sm font-medium text-slate-700 mr-2">{user?.name || user?.email || 'Usuario'}</span>
+                <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold uppercase">
+                  {(user?.name || user?.email || 'U').charAt(0)}
+                </div>
               </div>
             </div>
         </div>
