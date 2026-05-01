@@ -46,7 +46,8 @@ const CierreZForm: React.FC = () => {
     date_closed: new Date().toISOString().split('T')[0],
     taxable_sales: '',
     exempt_sales: '',
-    tax_amount: ''
+    tax_amount: '',
+    credit_notes: ''
   });
 
   // Details State
@@ -243,7 +244,7 @@ const CierreZForm: React.FC = () => {
             </div>
 
             <h3 className="text-lg font-medium text-slate-900 mt-8 mb-4 border-b pb-2">2. Desglose de Ventas e Impuestos</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700">Ventas Gravables ($)</label>
                 <input type="number" step="0.01" min="0" className="mt-1 block w-full h-10 border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-right font-mono" value={header.taxable_sales} onChange={e => setHeader({...header, taxable_sales: e.target.value})} placeholder="0.00" />
@@ -260,6 +261,10 @@ const CierreZForm: React.FC = () => {
                     ⚠️ El 7% esperado es aprox. ${expectedTax.toFixed(2)}
                   </p>
                 )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">Notas de Crédito ($)</label>
+                <input type="number" step="0.01" min="0" className="mt-1 block w-full h-10 border border-slate-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-right font-mono text-red-600" value={header.credit_notes} onChange={e => setHeader({...header, credit_notes: e.target.value})} placeholder="0.00" />
               </div>
             </div>
           </div>

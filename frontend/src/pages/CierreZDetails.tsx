@@ -17,6 +17,7 @@ interface CierreDetails {
   taxable_sales: number;
   exempt_sales: number;
   tax_amount: number;
+  credit_notes: number;
   total_sales: number;
   total_receipt: number;
   difference_amount: number;

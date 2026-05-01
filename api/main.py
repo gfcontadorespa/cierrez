@@ -328,6 +328,7 @@ class CierreCreate(BaseModel):
     exempt_sales: float
     tax_amount: float
     total_sales: float
+    credit_notes: float = 0.0
     total_receipt: float
     difference_amount: float
     image_url: str | None = None
@@ -666,7 +667,7 @@ def get_cierres(company_id: int | None = None, current_user: dict = Depends(get_
 
         base_query = """
             SELECT id, company_id, branch_id, z_number, date_closed, 
-                   taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, status, difference_amount, image_url, pos_receipt_url, deposit_receipt_url, workflow_status
+                   taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, status, difference_amount, image_url, pos_receipt_url, deposit_receipt_url, workflow_status, credit_notes
             FROM tbl_cierres_z_master
         """
         if company_id:
@@ -712,7 +713,7 @@ def create_cierre(cierre: CierreCreate, current_user: dict = Depends(get_current
             # 1. Insertar el Master
             query_master = """
                 INSERT INTO tbl_cierres_z_master 
-                (company_id, branch_id, z_number, date_closed, taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, difference_amount, status, image_url, pos_receipt_url, deposit_receipt_url, workflow_status) 
+                (company_id, branch_id, z_number, date_closed, taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, difference_amount, status, image_url, pos_receipt_url, deposit_receipt_url, workflow_status, credit_notes) 
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'draft') RETURNING id;
             """
             cur.execute(query_master, (
@@ -746,7 +747,7 @@ def get_cierre_details(cierre_id: int):
     try:
         query_master = """
             SELECT id, company_id, branch_id, z_number, date_closed, 
-                   taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, status, difference_amount, image_url, pos_receipt_url, deposit_receipt_url, workflow_status
+                   taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, status, difference_amount, image_url, pos_receipt_url, deposit_receipt_url, workflow_status, credit_notes
             FROM tbl_cierres_z_master WHERE id = %s
         """
         master_row = db.fetch_one(query_master, (cierre_id,))

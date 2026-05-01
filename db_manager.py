@@ -29,6 +29,7 @@ class PostgresManager:
                 try:
                     with conn.cursor() as cur:
                         cur.execute("ALTER TABLE tbl_cierres_z_master ADD COLUMN IF NOT EXISTS workflow_status VARCHAR(50) DEFAULT 'draft';")
+                        cur.execute("ALTER TABLE tbl_cierres_z_master ADD COLUMN IF NOT EXISTS credit_notes NUMERIC(15,2) DEFAULT 0.00;")
                         cur.execute("ALTER TABLE tbl_companies ADD COLUMN IF NOT EXISTS logo_url TEXT;")
                         conn.commit()
                 except Exception as e:
