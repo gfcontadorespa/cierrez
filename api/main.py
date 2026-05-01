@@ -186,7 +186,7 @@ def microsoft_auth(data: MicrosoftToken):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/dashboard/metrics")
-def get_dashboard_metrics(company_id: int = 1):
+def get_dashboard_metrics(company_id: int = 1, current_user: dict = Depends(get_current_user)):
     try:
         if company_id:
             verify_company_access(current_user, company_id)

@@ -26,7 +26,11 @@ const CierresZ: React.FC = () => {
   const fetchCierres = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/cierres?company_id=1');
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : {};
+      const activeCompanyIdStr = localStorage.getItem('active_company_id');
+      const companyId = activeCompanyIdStr ? parseInt(activeCompanyIdStr) : user.company_id || 1;
+      const response = await api.get(`/cierres?company_id=${companyId}`);
       setCierres(response.data);
     } catch (error) {
       console.error('Error fetching cierres:', error);

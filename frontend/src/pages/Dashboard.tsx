@@ -12,7 +12,11 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await api.get('/dashboard/metrics?company_id=1');
+        const userStr = localStorage.getItem('user');
+        const user = userStr ? JSON.parse(userStr) : {};
+        const activeCompanyIdStr = localStorage.getItem('active_company_id');
+        const companyId = activeCompanyIdStr ? parseInt(activeCompanyIdStr) : user.company_id || 1;
+        const res = await api.get(`/dashboard/metrics?company_id=${companyId}`);
         setData(res.data);
       } catch (err) {
         console.error("Error fetching dashboard metrics", err);
