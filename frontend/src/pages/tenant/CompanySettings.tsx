@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Save, Building2 } from 'lucide-react';
+import api from '../../services/api';
 
 export default function CompanySettings() {
   const [logoUrl, setLogoUrl] = useState<string>('');
@@ -18,13 +19,11 @@ export default function CompanySettings() {
 
   const fetchCompanies = async () => {
     try {
-      const response = await fetch('/api/companies');
-      if (response.ok) {
-        const companies = await response.json();
-        const myCompany = companies.find((c: any) => c.id === companyId);
-        if (myCompany && myCompany.logo_url) {
-          setLogoUrl(myCompany.logo_url);
-        }
+      const response = await api.get('/companies');
+      const companies = response.data;
+      const myCompany = companies.find((c: any) => c.id === companyId);
+      if (myCompany && myCompany.logo_url) {
+        setLogoUrl(myCompany.logo_url);
       }
     } catch (error) {
       console.error('Error fetching companies:', error);
@@ -40,14 +39,13 @@ export default function CompanySettings() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('/api/upload/logo', {
-        method: 'POST',
-        body: formData,
+      const response = await api.post('/upload/logo', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
-
-      if (!response.ok) throw new Error('Error al subir el logo');
       
-      const data = await response.json();
+      const data = response.data;
       setLogoUrl(data.url);
       setMessage('Imagen subida correctamente. No olvides guardar los cambios.');
     } catch (error) {
@@ -63,13 +61,7 @@ export default function CompanySettings() {
     
     setSaving(true);
     try {
-      const response = await fetch(`/api/companies/${companyId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ logo_url: logoUrl }),
-      });
-
-      if (!response.ok) throw new Error('Error al guardar configuración');
+      await api.put(`/companies/${companyId}`, { logo_url: logoUrl });
       
       setMessage('Configuración guardada exitosamente.');
       setTimeout(() => setMessage(''), 3000);

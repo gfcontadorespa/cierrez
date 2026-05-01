@@ -22,13 +22,18 @@ resend.api_key = os.getenv("RESEND_API_KEY")
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from db_manager import PostgresManager
+from fastapi import Depends
+from api.auth import create_access_token, get_current_user, verify_company_access
 
 app = FastAPI(title="Validador Cierres Z API")
 
-# Configurar CORS para permitir peticiones desde Vite (normalmente puerto 5173)
+# Configurar CORS para restringir peticiones
+allowed_origins_env = os.getenv("FRONTEND_URL", "http://localhost:5173,http://localhost:3000")
+allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # En producción se debe restringir al dominio
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -85,15 +90,19 @@ def google_auth(data: GoogleToken):
                 company_id = comp_row[0] if comp_row else None
                 
                 # Return session info (In production, generate a JWT here)
+                user_data = {
+                    "id": user_row[0],
+                    "email": email,
+                    "name": name,
+                    "is_global_admin": user_row[1],
+                    "company_id": company_id
+                }
+                
+                access_token = create_access_token(data=user_data)
+                
                 return {
-                    "access_token": f"fake-jwt-for-{email}",
-                    "user": {
-                        "id": user_row[0],
-                        "email": email,
-                        "name": name,
-                        "is_global_admin": user_row[1],
-                        "company_id": company_id
-                    }
+                    "access_token": access_token,
+                    "user": user_data
                 }
         finally:
             db.release_connection(conn)
@@ -148,15 +157,19 @@ def microsoft_auth(data: MicrosoftToken):
                 comp_row = cur.fetchone()
                 company_id = comp_row[0] if comp_row else None
                 
+                user_data = {
+                    "id": user_row[0],
+                    "email": email,
+                    "name": name,
+                    "is_global_admin": user_row[1],
+                    "company_id": company_id
+                }
+                
+                access_token = create_access_token(data=user_data)
+                
                 return {
-                    "access_token": f"fake-jwt-for-{email}",
-                    "user": {
-                        "id": user_row[0],
-                        "email": email,
-                        "name": name,
-                        "is_global_admin": user_row[1],
-                        "company_id": company_id
-                    }
+                    "access_token": access_token,
+                    "user": user_data
                 }
         finally:
             db.release_connection(conn)
@@ -171,6 +184,8 @@ def microsoft_auth(data: MicrosoftToken):
 @api_router.get("/dashboard/metrics")
 def get_dashboard_metrics(company_id: int = 1):
     try:
+        if company_id:
+            verify_company_access(current_user, company_id)
         conn = db.get_connection()
         try:
             with conn.cursor() as cur:
@@ -252,7 +267,7 @@ def get_dashboard_metrics(company_id: int = 1):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/companies")
-def get_companies():
+def get_companies(current_user: dict = Depends(get_current_user)):
     try:
         companies = db.fetch_all("SELECT id, name, ruc, active, logo_url FROM tbl_companies ORDER BY id DESC;")
         # Convertir tuplas a diccionarios
@@ -317,7 +332,7 @@ class CierreCreate(BaseModel):
     payments: list[CierrePayment]
 
 @api_router.post("/companies")
-def create_company(company: CompanyCreate):
+def create_company(company: CompanyCreate, current_user: dict = Depends(get_current_user)):
     try:
         query = "INSERT INTO tbl_companies (name, ruc, z_sequence_type, z_current_sequence, use_ai_validation) VALUES (%s, %s, 'manual', 0, FALSE) RETURNING id;"
         conn = db.get_connection()
@@ -333,8 +348,10 @@ def create_company(company: CompanyCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.put("/companies/{company_id}")
-def update_company(company_id: int, company: CompanyUpdate):
+def update_company(company_id: int, company: CompanyUpdate, current_user: dict = Depends(get_current_user)):
     try:
+        if company_id:
+            verify_company_access(current_user, company_id)
         fields = []
         values = []
         if company.z_sequence_type is not None:
@@ -370,8 +387,10 @@ def update_company(company_id: int, company: CompanyUpdate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/companies/{company_id}/users")
-def get_company_users(company_id: int):
+def get_company_users(company_id: int, current_user: dict = Depends(get_current_user)):
     try:
+        if company_id:
+            verify_company_access(current_user, company_id)
         query = """
             SELECT u.id, u.email, u.name, u.active, cu.role, cu.created_at, u.google_id
             FROM tbl_users u
@@ -398,6 +417,8 @@ def get_company_users(company_id: int):
 @api_router.post("/companies/{company_id}/users")
 def add_user_to_company(company_id: int, user: CompanyUserCreate):
     try:
+        if company_id:
+            verify_company_access(current_user, company_id)
         conn = db.get_connection()
         try:
             with conn.cursor() as cur:
@@ -487,6 +508,8 @@ def add_user_to_company(company_id: int, user: CompanyUserCreate):
 @api_router.delete("/companies/{company_id}/users/{user_id}")
 def remove_user_from_company(company_id: int, user_id: int):
     try:
+        if company_id:
+            verify_company_access(current_user, company_id)
         conn = db.get_connection()
         try:
             with conn.cursor() as cur:
@@ -515,8 +538,10 @@ def remove_user_from_company(company_id: int, user_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/bank_accounts")
-def get_bank_accounts(company_id: int | None = None):
+def get_bank_accounts(company_id: int | None = None, current_user: dict = Depends(get_current_user)):
     try:
+        if company_id:
+            verify_company_access(current_user, company_id)
         if company_id:
             query = "SELECT id, company_id, name, account_number, accounting_code, active FROM tbl_bank_accounts WHERE active = TRUE AND company_id = %s ORDER BY id DESC;"
             accounts = db.fetch_all(query, (company_id,))
@@ -546,8 +571,10 @@ def create_bank_account(account: BankAccountCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/payment_methods")
-def get_payment_methods(company_id: int | None = None):
+def get_payment_methods(company_id: int | None = None, current_user: dict = Depends(get_current_user)):
     try:
+        if company_id:
+            verify_company_access(current_user, company_id)
         # Hacemos un JOIN con tbl_bank_accounts para devolver también el nombre del banco y su cuenta contable
         base_query = """
             SELECT pm.id, pm.company_id, pm.name, pm.bank_account_id, pm.active, 
@@ -593,7 +620,7 @@ def create_payment_method(method: PaymentMethodCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/users")
-def get_users():
+def get_users(current_user: dict = Depends(get_current_user)):
     try:
         query = "SELECT id, email, name, is_global_admin, active FROM tbl_users ORDER BY id DESC;"
         users = db.fetch_all(query)
@@ -603,8 +630,9 @@ def get_users():
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/users")
-def create_user(user: UserCreate):
+def create_user(user: UserCreate, current_user: dict = Depends(get_current_user)):
     try:
+        verify_company_access(current_user, user.company_id)
         query = "INSERT INTO tbl_users (email, name, is_global_admin) VALUES (%s, %s, %s) RETURNING id;"
         conn = db.get_connection()
         try:
@@ -619,8 +647,13 @@ def create_user(user: UserCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/cierres")
-def get_cierres(company_id: int | None = None):
+def get_cierres(company_id: int | None = None, current_user: dict = Depends(get_current_user)):
     try:
+        if not current_user.get("is_global_admin"):
+            company_id = current_user.get("company_id")
+        elif company_id:
+            verify_company_access(current_user, company_id)
+
         base_query = """
             SELECT id, company_id, branch_id, z_number, date_closed, 
                    taxable_sales, exempt_sales, tax_amount, total_sales, total_receipt, status, difference_amount, image_url, pos_receipt_url, deposit_receipt_url, workflow_status
@@ -646,7 +679,7 @@ def get_cierres(company_id: int | None = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/cierres")
-def create_cierre(cierre: CierreCreate):
+def create_cierre(cierre: CierreCreate, current_user: dict = Depends(get_current_user)):
     conn = db.get_connection()
     try:
         with conn.cursor() as cur:
@@ -738,8 +771,10 @@ def get_cierre_details(cierre_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/branches")
-def get_branches(company_id: int | None = None):
+def get_branches(company_id: int | None = None, current_user: dict = Depends(get_current_user)):
     try:
+        if company_id:
+            verify_company_access(current_user, company_id)
         if company_id:
             query = "SELECT id, company_id, name, active FROM tbl_branches WHERE company_id = %s ORDER BY name ASC;"
             branches = db.fetch_all(query, (company_id,))
@@ -753,8 +788,9 @@ def get_branches(company_id: int | None = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/branches")
-def create_branch(branch: BranchCreate):
+def create_branch(branch: BranchCreate, current_user: dict = Depends(get_current_user)):
     try:
+        verify_company_access(current_user, branch.company_id)
         query = "INSERT INTO tbl_branches (company_id, name) VALUES (%s, %s) RETURNING id;"
         conn = db.get_connection()
         try:
@@ -771,7 +807,19 @@ def create_branch(branch: BranchCreate):
 load_dotenv()
 
 @api_router.post("/upload/receipt")
-async def upload_receipt(file: UploadFile = File(...)):
+async def upload_receipt(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
+    # Security: File type validation
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "application/pdf"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Tipo de archivo no permitido")
+        
+    # Security: Size validation (5MB max)
+    file.file.seek(0, os.SEEK_END)
+    size = file.file.tell()
+    if size > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="El archivo excede el límite de 5MB")
+    file.file.seek(0)
+    
     endpoint_url = os.environ.get("R2_ENDPOINT_URL")
     access_key = os.environ.get("R2_ACCESS_KEY_ID")
     secret_key = os.environ.get("R2_SECRET_ACCESS_KEY")
@@ -941,7 +989,22 @@ from pydantic import BaseModel
 from api.pdf_generator import generate_cierre_pdf
 
 @api_router.post("/upload/logo")
-async def upload_logo(file: UploadFile = File(...)):
+async def upload_logo(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
+    if not current_user.get("is_global_admin"):
+        raise HTTPException(status_code=403, detail="Solo administradores pueden subir logos")
+
+    # Security: File type validation
+    allowed_types = ["image/jpeg", "image/png", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Tipo de archivo no permitido")
+        
+    # Security: Size validation (2MB max for logos)
+    file.file.seek(0, os.SEEK_END)
+    size = file.file.tell()
+    if size > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="El archivo excede el límite de 2MB")
+    file.file.seek(0)
+
     endpoint_url = os.environ.get("R2_ENDPOINT_URL")
     access_key = os.environ.get("R2_ACCESS_KEY_ID")
     secret_key = os.environ.get("R2_SECRET_ACCESS_KEY")
@@ -1045,7 +1108,7 @@ def update_cierre_status(cierre_id: int, update_data: CierreStatusUpdate):
         db.release_connection(conn)
 
 @api_router.get("/cierres/{cierre_id}/pdf")
-def download_cierre_pdf(cierre_id: int):
+def download_cierre_pdf(cierre_id: int, current_user: dict = Depends(get_current_user)):
     try:
         cierre_details = get_cierre_details(cierre_id)
         

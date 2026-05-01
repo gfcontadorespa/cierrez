@@ -127,8 +127,10 @@ const CierreZForm: React.FC = () => {
     const formData = new FormData();
     formData.append('file', file);
     const baseUrl = import.meta.env.VITE_API_URL || '/api';
+    const token = localStorage.getItem('token');
     const uploadRes = await fetch(`${baseUrl}/upload/receipt`, {
       method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       body: formData
     });
     if (!uploadRes.ok) {
