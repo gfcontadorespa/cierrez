@@ -62,35 +62,37 @@ const Layout: React.FC = () => {
           </nav>
 
           {/* Sección Configuración de la Compañía */}
-          <div className="mt-6">
-            <h3 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" id="company-settings-headline">
-              Configuración
-            </h3>
-            <nav className="mt-2 px-2 space-y-1" aria-labelledby="company-settings-headline">
-              {companySettingsNavigation.map((item) => {
-                const isActive = location.pathname.startsWith(item.href) && item.href !== '#';
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={classNames(
-                      isActive ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white',
-                      'group flex items-center px-2 py-2 text-sm font-medium rounded-md'
-                    )}
-                  >
-                    <item.icon
+          {(user?.role === 'admin' || user?.is_global_admin) && (
+            <div className="mt-6">
+              <h3 className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" id="company-settings-headline">
+                Configuración
+              </h3>
+              <nav className="mt-2 px-2 space-y-1" aria-labelledby="company-settings-headline">
+                {companySettingsNavigation.map((item) => {
+                  const isActive = location.pathname.startsWith(item.href) && item.href !== '#';
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
                       className={classNames(
-                        isActive ? 'text-white' : 'text-slate-400 group-hover:text-white',
-                        'mr-3 flex-shrink-0 h-6 w-6'
+                        isActive ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                        'group flex items-center px-2 py-2 text-sm font-medium rounded-md'
                       )}
-                      aria-hidden="true"
-                    />
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
+                    >
+                      <item.icon
+                        className={classNames(
+                          isActive ? 'text-white' : 'text-slate-400 group-hover:text-white',
+                          'mr-3 flex-shrink-0 h-6 w-6'
+                        )}
+                        aria-hidden="true"
+                      />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          )}
 
           {/* Sección Admin Global */}
           {user?.is_global_admin && (

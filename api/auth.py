@@ -30,14 +30,17 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Token inválido")
 
-def verify_company_access(user: dict, company_id: int):
+def verify_company_access(user: dict, company_id: int, require_admin: bool = False):
     """
     Verifies that the authenticated user has access to the requested company_id.
+    If require_admin is True, also verifies that the user is an admin of the company.
     """
     if user.get("is_global_admin"):
         return True
     
     if user.get("company_id") == company_id:
+        if require_admin and user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Esta acción requiere privilegios de administrador de compañía")
         return True
         
     raise HTTPException(status_code=403, detail="No tienes permisos para acceder a esta compañía")

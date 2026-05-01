@@ -84,10 +84,11 @@ def google_auth(data: GoogleToken):
                     cur.execute("UPDATE tbl_users SET google_id = %s WHERE id = %s AND google_id IS NULL", (google_sub, user_row[0]))
                     conn.commit()
 
-                # Obtener company_id (si tiene una compañía asignada)
-                cur.execute("SELECT company_id FROM tbl_company_users WHERE user_id = %s LIMIT 1", (user_row[0],))
+                # Obtener company_id y role (si tiene una compañía asignada)
+                cur.execute("SELECT company_id, role FROM tbl_company_users WHERE user_id = %s LIMIT 1", (user_row[0],))
                 comp_row = cur.fetchone()
                 company_id = comp_row[0] if comp_row else None
+                role = comp_row[1] if comp_row else 'user'
                 
                 # Return session info (In production, generate a JWT here)
                 user_data = {
@@ -95,7 +96,8 @@ def google_auth(data: GoogleToken):
                     "email": email,
                     "name": name,
                     "is_global_admin": user_row[1],
-                    "company_id": company_id
+                    "company_id": company_id,
+                    "role": role
                 }
                 
                 access_token = create_access_token(data=user_data)
@@ -152,17 +154,19 @@ def microsoft_auth(data: MicrosoftToken):
                     cur.execute("UPDATE tbl_users SET google_id = %s WHERE id = %s AND google_id IS NULL", (sub_id, user_row[0]))
                     conn.commit()
 
-                # Obtener company_id
-                cur.execute("SELECT company_id FROM tbl_company_users WHERE user_id = %s LIMIT 1", (user_row[0],))
+                # Obtener company_id y role
+                cur.execute("SELECT company_id, role FROM tbl_company_users WHERE user_id = %s LIMIT 1", (user_row[0],))
                 comp_row = cur.fetchone()
                 company_id = comp_row[0] if comp_row else None
+                role = comp_row[1] if comp_row else 'user'
                 
                 user_data = {
                     "id": user_row[0],
                     "email": email,
                     "name": name,
                     "is_global_admin": user_row[1],
-                    "company_id": company_id
+                    "company_id": company_id,
+                    "role": role
                 }
                 
                 access_token = create_access_token(data=user_data)
@@ -351,7 +355,7 @@ def create_company(company: CompanyCreate, current_user: dict = Depends(get_curr
 def update_company(company_id: int, company: CompanyUpdate, current_user: dict = Depends(get_current_user)):
     try:
         if company_id:
-            verify_company_access(current_user, company_id)
+            verify_company_access(current_user, company_id, require_admin=True)
         fields = []
         values = []
         if company.z_sequence_type is not None:
@@ -390,7 +394,7 @@ def update_company(company_id: int, company: CompanyUpdate, current_user: dict =
 def get_company_users(company_id: int, current_user: dict = Depends(get_current_user)):
     try:
         if company_id:
-            verify_company_access(current_user, company_id)
+            verify_company_access(current_user, company_id, require_admin=True)
         query = """
             SELECT u.id, u.email, u.name, u.active, cu.role, cu.created_at, u.google_id
             FROM tbl_users u
@@ -541,7 +545,7 @@ def remove_user_from_company(company_id: int, user_id: int):
 def get_bank_accounts(company_id: int | None = None, current_user: dict = Depends(get_current_user)):
     try:
         if company_id:
-            verify_company_access(current_user, company_id)
+            verify_company_access(current_user, company_id, require_admin=True)
         if company_id:
             query = "SELECT id, company_id, name, account_number, accounting_code, active FROM tbl_bank_accounts WHERE active = TRUE AND company_id = %s ORDER BY id DESC;"
             accounts = db.fetch_all(query, (company_id,))
@@ -790,7 +794,7 @@ def get_branches(company_id: int | None = None, current_user: dict = Depends(get
 @api_router.post("/branches")
 def create_branch(branch: BranchCreate, current_user: dict = Depends(get_current_user)):
     try:
-        verify_company_access(current_user, branch.company_id)
+        verify_company_access(current_user, branch.company_id, require_admin=True)
         query = "INSERT INTO tbl_branches (company_id, name) VALUES (%s, %s) RETURNING id;"
         conn = db.get_connection()
         try:
@@ -990,7 +994,7 @@ from api.pdf_generator import generate_cierre_pdf
 
 @api_router.post("/upload/logo")
 async def upload_logo(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
-    if not current_user.get("is_global_admin"):
+    if not current_user.get("is_global_admin") and current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Solo administradores pueden subir logos")
 
     # Security: File type validation
