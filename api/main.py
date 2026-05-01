@@ -426,10 +426,10 @@ def get_company_users(company_id: int, current_user: dict = Depends(get_current_
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/companies/{company_id}/users")
-def add_user_to_company(company_id: int, user: CompanyUserCreate):
+def add_user_to_company(company_id: int, user: CompanyUserCreate, current_user: dict = Depends(get_current_user)):
     try:
         if company_id:
-            verify_company_access(current_user, company_id)
+            verify_company_access(current_user, company_id, require_admin=True)
         conn = db.get_connection()
         try:
             with conn.cursor() as cur:
