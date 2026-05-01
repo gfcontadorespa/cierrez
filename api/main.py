@@ -938,7 +938,7 @@ def run_daily_report(target_date: str | None = None):
 
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from pdf_generator import generate_cierre_pdf
+from api.pdf_generator import generate_cierre_pdf
 
 @api_router.post("/upload/logo")
 async def upload_logo(file: UploadFile = File(...)):
