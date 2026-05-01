@@ -23,6 +23,20 @@ class PostgresManager:
                     database=os.getenv("DB_NAME")
                 )
                 print("Pool de conexiones creado con éxito.")
+                
+                # Ensure missing columns from recent features exist
+                conn = PostgresManager._connection_pool.getconn()
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute("ALTER TABLE tbl_cierres_z_master ADD COLUMN IF NOT EXISTS workflow_status VARCHAR(50) DEFAULT 'draft';")
+                        cur.execute("ALTER TABLE tbl_companies ADD COLUMN IF NOT EXISTS logo_url TEXT;")
+                        conn.commit()
+                except Exception as e:
+                    print(f"Error asegurando el esquema de base de datos: {e}")
+                    conn.rollback()
+                finally:
+                    PostgresManager._connection_pool.putconn(conn)
+
             except (Exception, psycopg2.DatabaseError) as error:
                 print(f"Error al conectar con PostgreSQL: {error}")
                 raise
