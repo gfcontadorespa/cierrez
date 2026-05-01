@@ -46,9 +46,10 @@ const Companies: React.FC = () => {
       setCompanies([response.data, ...companies]);
       setIsModalOpen(false);
       setNewCompany({ name: '', ruc: '' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating company:', error);
-      alert('Hubo un error al crear la compañía');
+      const backendMessage = error.response?.data?.detail || error.message || 'Desconocido';
+      alert('Hubo un error al crear la compañía: ' + backendMessage);
     }
   };
 

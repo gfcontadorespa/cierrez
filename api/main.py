@@ -338,6 +338,9 @@ class CierreCreate(BaseModel):
 @api_router.post("/companies")
 def create_company(company: CompanyCreate, current_user: dict = Depends(get_current_user)):
     try:
+        if not current_user.get("is_global_admin"):
+            raise HTTPException(status_code=403, detail="Solo los administradores globales pueden crear nuevas compañías")
+
         query = "INSERT INTO tbl_companies (name, ruc, z_sequence_type, z_current_sequence, use_ai_validation) VALUES (%s, %s, 'manual', 0, FALSE) RETURNING id;"
         conn = db.get_connection()
         try:
@@ -348,8 +351,11 @@ def create_company(company: CompanyCreate, current_user: dict = Depends(get_curr
                 return {"id": new_id, "name": company.name, "ruc": company.ruc, "active": True}
         finally:
             db.release_connection(conn)
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print("Error creating company:", str(e))
+        raise HTTPException(status_code=500, detail=f"Error en base de datos: {str(e)}")
 
 @api_router.put("/companies/{company_id}")
 def update_company(company_id: int, company: CompanyUpdate, current_user: dict = Depends(get_current_user)):
