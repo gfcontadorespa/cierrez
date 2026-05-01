@@ -9,7 +9,8 @@ export default function CompanySettings() {
   const [message, setMessage] = useState('');
   
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const companyId = user.company_id;
+  const activeCompanyIdStr = localStorage.getItem('active_company_id');
+  const companyId = activeCompanyIdStr ? parseInt(activeCompanyIdStr) : user.company_id;
 
   useEffect(() => {
     if (companyId) {

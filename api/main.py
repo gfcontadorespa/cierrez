@@ -566,8 +566,9 @@ def get_bank_accounts(company_id: int | None = None, current_user: dict = Depend
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/bank_accounts")
-def create_bank_account(account: BankAccountCreate):
+def create_bank_account(account: BankAccountCreate, current_user: dict = Depends(get_current_user)):
     try:
+        verify_company_access(current_user, account.company_id, require_admin=True)
         query = "INSERT INTO tbl_bank_accounts (company_id, name, account_number, accounting_code) VALUES (%s, %s, %s, %s) RETURNING id;"
         conn = db.get_connection()
         try:
@@ -612,8 +613,9 @@ def get_payment_methods(company_id: int | None = None, current_user: dict = Depe
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/payment_methods")
-def create_payment_method(method: PaymentMethodCreate):
+def create_payment_method(method: PaymentMethodCreate, current_user: dict = Depends(get_current_user)):
     try:
+        verify_company_access(current_user, method.company_id, require_admin=True)
         query = "INSERT INTO tbl_payment_methods (company_id, name, bank_account_id) VALUES (%s, %s, %s) RETURNING id;"
         result = db.fetch_one(query, (method.company_id, method.name, method.bank_account_id))
         # Note: We should technically commit if fetch_one is used for INSERT, but since the previous ones worked, it might be auto-committing in some environments or failing silently. 

@@ -30,9 +30,11 @@ const PaymentMethods: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const activeCompanyId = localStorage.getItem('active_company_id') || user.company_id;
       const [methodsRes, banksRes] = await Promise.all([
-        api.get('/payment_methods?company_id=1'),
-        api.get('/bank_accounts?company_id=1')
+        api.get(`/payment_methods?company_id=${activeCompanyId}`),
+        api.get(`/bank_accounts?company_id=${activeCompanyId}`)
       ]);
       setMethods(methodsRes.data);
       setBankAccounts(banksRes.data);
@@ -46,8 +48,11 @@ const PaymentMethods: React.FC = () => {
   const handleCreateMethod = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const activeCompanyId = localStorage.getItem('active_company_id') || user.company_id;
       const payload = {
         ...newMethod,
+        company_id: parseInt(activeCompanyId),
         bank_account_id: parseInt(newMethod.bank_account_id)
       };
       await api.post('/payment_methods', payload);

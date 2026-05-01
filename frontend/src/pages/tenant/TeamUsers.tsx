@@ -13,11 +13,14 @@ const TeamUsers: React.FC = () => {
   useEffect(() => {
     // Obtener company_id del usuario conectado
     const userStr = localStorage.getItem('user');
+    const activeCompanyIdStr = localStorage.getItem('active_company_id');
+    
     if (userStr) {
       const user = JSON.parse(userStr);
-      if (user.company_id) {
-        setCompanyId(user.company_id);
-        fetchTeamUsers(user.company_id);
+      const activeId = activeCompanyIdStr ? parseInt(activeCompanyIdStr) : user.company_id;
+      if (activeId) {
+        setCompanyId(activeId);
+        fetchTeamUsers(activeId);
       } else {
         setLoading(false);
       }

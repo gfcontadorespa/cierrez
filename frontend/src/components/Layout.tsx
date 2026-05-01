@@ -1,10 +1,23 @@
 import React from 'react';
-import { Link, useLocation, Outlet } from 'react-router-dom';
+import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Wallet, Receipt, LogOut, Building2, Users, Landmark, Store } from 'lucide-react';
 
 const Layout: React.FC = () => {
   const location = useLocation();
+  
+  const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const activeCompanyId = localStorage.getItem('active_company_id');
+  const activeCompanyName = localStorage.getItem('active_company_name');
+  
+  const isImpersonating = activeCompanyId && parseInt(activeCompanyId) !== user.company_id;
+
+  const handleStopImpersonating = () => {
+    localStorage.removeItem('active_company_id');
+    localStorage.removeItem('active_company_name');
+    navigate('/dashboard');
+  };
+
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Building2, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -22,6 +23,15 @@ const Companies: React.FC = () => {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState('admin');
+
+  const navigate = useNavigate();
+
+  const handleConfigurar = (companyId: number, companyName: string) => {
+    localStorage.setItem('active_company_id', companyId.toString());
+    localStorage.setItem('active_company_name', companyName);
+    navigate('/settings/general');
+  };
+
 
   useEffect(() => {
     fetchCompanies();
@@ -173,8 +183,11 @@ const Companies: React.FC = () => {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+
                     <button onClick={() => openUsersModal(company)} className="text-blue-600 hover:text-blue-900 mr-4">Usuarios</button>
+                    <button onClick={() => handleConfigurar(company.id, company.name)} className="text-amber-600 hover:text-amber-900 mr-4 font-bold">Configurar</button>
                     <button className="text-slate-600 hover:text-slate-900">Editar</button>
+
                   </td>
                 </tr>
               ))}

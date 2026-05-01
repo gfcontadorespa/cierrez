@@ -25,7 +25,9 @@ const BankAccounts: React.FC = () => {
   const fetchAccounts = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/bank_accounts?company_id=1');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const activeCompanyId = localStorage.getItem('active_company_id') || user.company_id;
+      const response = await api.get(`/bank_accounts?company_id=${activeCompanyId}`);
       setAccounts(response.data);
     } catch (error) {
       console.error('Error fetching bank accounts:', error);
@@ -37,7 +39,10 @@ const BankAccounts: React.FC = () => {
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await api.post('/bank_accounts', newAccount);
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const activeCompanyId = localStorage.getItem('active_company_id') || user.company_id;
+      const payload = { ...newAccount, company_id: parseInt(activeCompanyId) };
+      const response = await api.post('/bank_accounts', payload);
       setAccounts([response.data, ...accounts]);
       setIsModalOpen(false);
       setNewAccount({ company_id: 1, name: '', account_number: '', accounting_code: '' });

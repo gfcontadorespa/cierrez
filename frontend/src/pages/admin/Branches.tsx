@@ -21,7 +21,9 @@ const Branches: React.FC = () => {
   const fetchBranches = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/branches?company_id=1');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const activeCompanyId = localStorage.getItem('active_company_id') || user.company_id;
+      const response = await api.get(`/branches?company_id=${activeCompanyId}`);
       setBranches(response.data);
     } catch (error) {
       console.error('Error fetching branches:', error);
@@ -33,7 +35,10 @@ const Branches: React.FC = () => {
   const handleCreateBranch = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await api.post('/branches', newBranch);
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const activeCompanyId = localStorage.getItem('active_company_id') || user.company_id;
+      const payload = { ...newBranch, company_id: parseInt(activeCompanyId) };
+      const response = await api.post('/branches', payload);
       setBranches([response.data, ...branches]);
       setIsModalOpen(false);
       setNewBranch({ company_id: 1, name: '' });
