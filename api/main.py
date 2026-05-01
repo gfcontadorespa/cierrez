@@ -517,10 +517,10 @@ def add_user_to_company(company_id: int, user: CompanyUserCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.delete("/companies/{company_id}/users/{user_id}")
-def remove_user_from_company(company_id: int, user_id: int):
+def remove_user_from_company(company_id: int, user_id: int, current_user: dict = Depends(get_current_user)):
     try:
         if company_id:
-            verify_company_access(current_user, company_id)
+            verify_company_access(current_user, company_id, require_admin=True)
         conn = db.get_connection()
         try:
             with conn.cursor() as cur:
