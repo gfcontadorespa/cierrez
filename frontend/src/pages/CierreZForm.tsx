@@ -131,7 +131,10 @@ const CierreZForm: React.FC = () => {
       method: 'POST',
       body: formData
     });
-    if (!uploadRes.ok) throw new Error('Upload failed');
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text();
+      throw new Error(`Upload failed: ${uploadRes.status} ${errText}`);
+    }
     const data = await uploadRes.json();
     return data.url;
   };
@@ -182,9 +185,10 @@ const CierreZForm: React.FC = () => {
 
       await api.post('/cierres', payload);
       navigate('/cierres');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving cierre:', error);
-      alert('Error al guardar el Cierre Z o subir la imagen');
+      const errorMsg = error?.response?.data?.detail || error.message || 'Error desconocido';
+      alert(`Error al guardar el Cierre Z o subir la imagen:\n${errorMsg}`);
     } finally {
       setLoading(false);
       setUploadingImage(false);
